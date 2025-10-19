@@ -115,12 +115,38 @@ body {
   }
 }
 
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutToRight {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out;
 }
 
 .animate-slide-in {
   animation: slideIn 0.3s ease-out;
+}
+
+.animate-slide-in-from-right {
+  animation: slideInFromRight 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.animate-slide-out-to-right {
+  animation: slideOutToRight 0.3s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /* Loading spinner */
