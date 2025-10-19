@@ -9,6 +9,8 @@ import {
   PostOnlyParams,
   PRICE_PRECISION_EXP,
   QUOTE_PRECISION_EXP,
+  ZERO,
+  BN,
 } from "@drift-labs/sdk";
 import { useDriftStore } from "@/stores/DriftStore";
 import { useUserAccountDataStore } from "@/stores/UserAccountDataStore";
@@ -16,13 +18,12 @@ import { ENUM_UTILS, PerpOrderParams, GeoBlockError } from "@drift-labs/common";
 import { toast } from "sonner";
 import { TransactionSignature } from "@solana/web3.js";
 import { BUILDER_AUTHORITY } from "@/constants/builderCode";
+import { useMarkPriceStore } from "@/stores/MarkPriceStore";
+import { useOraclePriceStore } from "@/stores/OraclePriceStore";
+import { MarketId } from "@drift-labs/common";
+import { useGetPerpMarketMinOrderSize } from "@/hooks/markets/useGetPerpMarketMinOrderSize";
 
-export type PerpOrderType =
-  | "market"
-  | "limit"
-  | "takeProfit"
-  | "stopLoss"
-  | "oracleLimit";
+export type PerpOrderType = "market" | "limit" | "takeProfit" | "stopLoss" | "oracleLimit";
 export type AssetSizeType = "base" | "quote";
 
 export interface UsePerpTradingProps {
@@ -30,23 +31,14 @@ export interface UsePerpTradingProps {
   selectedMarketIndex: number;
 }
 
-export const usePerpTrading = ({
-  perpMarketConfigs,
-  selectedMarketIndex,
-}: UsePerpTradingProps) => {
+export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePerpTradingProps) => {
   const drift = useDriftStore((s) => s.drift);
   const isSwiftClientHealthy = useDriftStore((s) => s.isSwiftClientHealthy);
-  const activeSubAccountId = useUserAccountDataStore(
-    (s) => s.activeSubAccountId,
-  );
-  const revenueShareEscrow = useUserAccountDataStore(
-    (s) => s.revenueShareEscrow,
-  );
+  const activeSubAccountId = useUserAccountDataStore((s) => s.activeSubAccountId);
+  const revenueShareEscrow = useUserAccountDataStore((s) => s.revenueShareEscrow);
 
   const [orderType, setOrderType] = useState<PerpOrderType>("market");
-  const [direction, setDirection] = useState<PositionDirection>(
-    PositionDirection.LONG,
-  );
+  const [direction, setDirection] = useState<PositionDirection>(PositionDirection.LONG);
   const [sizeType, setSizeType] = useState<AssetSizeType>("base");
   const [size, setSize] = useState("");
   const [limitPrice, setLimitPrice] = useState("");
@@ -77,6 +69,15 @@ export const usePerpTrading = ({
     (config) => config.marketIndex === selectedMarketIndex,
   );
 
+  const minOrderSize = useGetPerpMarketMinOrderSize(selectedMarketIndex);
+  
+  const selectedMarketId = MarketId.createPerpMarket(selectedMarketIndex);
+  const markPrice = useMarkPriceStore((s) => s.lookup[selectedMarketId.key]?.markPrice ?? ZERO);
+  const oraclePrice = useOraclePriceStore((s) => s.lookup[selectedMarketId.key]?.price ?? ZERO);
+  
+  // Use mark price if available, otherwise fallback to oracle price
+  const currentPrice = !markPrice.eq(ZERO) ? markPrice : oraclePrice;
+
   const validateForm = (): { isValid: boolean; errorMessage?: string } => {
     if (!selectedMarketConfig) {
       return {
@@ -92,6 +93,71 @@ export const usePerpTrading = ({
       };
     }
 
+    if (selectedMarketConfig && !minOrderSize.eq(ZERO)) {
+      try {
+        const sizePrecisionExp = sizeType === "base" ? BASE_PRECISION_EXP : QUOTE_PRECISION_EXP;
+        const sizeBigNum = BigNum.fromPrint(size, sizePrecisionExp);
+        
+        // For base asset type, directly compare with minimum order size
+        if (sizeType === "base") {
+          if (sizeBigNum.val.lt(minOrderSize)) {
+            const minOrderSizeFormatted = BigNum.from(minOrderSize, BASE_PRECISION_EXP).prettyPrint();
+            return {
+              isValid: false,
+              errorMessage: `Order size must be at least ${minOrderSizeFormatted} ${selectedMarketConfig.baseAssetSymbol}`,
+            };
+          }
+        } else if (sizeType === "quote") {
+          // For quote asset type, convert notional amount to base asset amount using current price
+          if (currentPrice.eq(ZERO)) {
+            return {
+              isValid: false,
+              errorMessage: "Price data not available. Please try again in a moment.",
+            };
+          }
+          
+          // Quote amount / Current price = Base amount
+          // To maintain precision, we'll use BN math directly
+          const currentPriceBigNum = BigNum.from(currentPrice, PRICE_PRECISION_EXP);
+          
+          // Convert both to their raw BN values and do the division with proper scaling
+          const sizeRaw = sizeBigNum.val; // This is in QUOTE_PRECISION (1e6)
+          const priceRaw = currentPriceBigNum.val; // This is in PRICE_PRECISION (1e6)
+          
+          // sizeRaw (1e6) / priceRaw (1e6) * 1e9 = result in BASE_PRECISION (1e9)
+          const basePrecisionMultiplier = new BN(10).pow(new BN(BASE_PRECISION_EXP));
+          const baseEquivalentRaw = sizeRaw.mul(basePrecisionMultiplier).div(priceRaw);
+          const baseEquivalent = BigNum.from(baseEquivalentRaw, BASE_PRECISION_EXP);
+          
+          // Debug logging
+          console.log("Quote validation debug (improved):", {
+            size,
+            sizeUSDC: sizeBigNum.prettyPrint(),
+            sizeBigNumVal: sizeBigNum.val.toString(),
+            currentPrice: currentPriceBigNum.prettyPrint(),
+            currentPriceVal: currentPriceBigNum.val.toString(),
+            baseEquivalent: baseEquivalent.prettyPrint(),
+            baseEquivalentVal: baseEquivalent.val.toString(),
+            baseEquivalentRaw: baseEquivalentRaw.toString(),
+            minOrderSize: BigNum.from(minOrderSize, BASE_PRECISION_EXP).prettyPrint(),
+            minOrderSizeVal: minOrderSize.toString(),
+            isValid: !baseEquivalent.val.lt(minOrderSize)
+          });
+          
+          if (baseEquivalent.val.lt(minOrderSize)) {
+            const minOrderSizeFormatted = BigNum.from(minOrderSize, BASE_PRECISION_EXP).prettyPrint();
+            const minNotionalValue = BigNum.from(minOrderSize, BASE_PRECISION_EXP).mul(currentPriceBigNum);
+            return {
+              isValid: false,
+              errorMessage: `Order size must be at least ${minOrderSizeFormatted} ${selectedMarketConfig.baseAssetSymbol} (≈$${minNotionalValue.prettyPrint()})`,
+            };
+          }
+        }
+      } catch (_error) {
+        // If size parsing fails, let it be caught by other validations
+      }
+    }
+
     if (orderType === "limit" && !limitPrice) {
       return {
         isValid: false,
@@ -99,14 +165,10 @@ export const usePerpTrading = ({
       };
     }
 
-    if (
-      (orderType === "takeProfit" || orderType === "stopLoss") &&
-      !triggerPrice
-    ) {
+    if ((orderType === "takeProfit" || orderType === "stopLoss") && !triggerPrice) {
       return {
         isValid: false,
-        errorMessage:
-          "Please enter a trigger price for take profit/stop loss orders",
+        errorMessage: "Please enter a trigger price for take profit/stop loss orders",
       };
     }
 
@@ -118,20 +180,14 @@ export const usePerpTrading = ({
     }
 
     // Validate take profit and stop loss values are numeric when provided
-    if (
-      takeProfitPrice &&
-      (isNaN(Number(takeProfitPrice)) || Number(takeProfitPrice) <= 0)
-    ) {
+    if (takeProfitPrice && (isNaN(Number(takeProfitPrice)) || Number(takeProfitPrice) <= 0)) {
       return {
         isValid: false,
         errorMessage: "Take profit price must be a positive number",
       };
     }
 
-    if (
-      stopLossPrice &&
-      (isNaN(Number(stopLossPrice)) || Number(stopLossPrice) <= 0)
-    ) {
+    if (stopLossPrice && (isNaN(Number(stopLossPrice)) || Number(stopLossPrice) <= 0)) {
       return {
         isValid: false,
         errorMessage: "Stop loss price must be a positive number",
@@ -144,8 +200,7 @@ export const usePerpTrading = ({
   const handleSubmit = async () => {
     if (!drift || activeSubAccountId === undefined) {
       toast.error("Drift Not Ready", {
-        description:
-          "Please ensure Drift is properly initialized and try again.",
+        description: "Please ensure Drift is properly initialized and try again.",
         duration: 4000,
       });
       return;
@@ -164,8 +219,7 @@ export const usePerpTrading = ({
     setIsLoading(true);
 
     try {
-      const sizePrecisionExp =
-        sizeType === "base" ? BASE_PRECISION_EXP : QUOTE_PRECISION_EXP;
+      const sizePrecisionExp = sizeType === "base" ? BASE_PRECISION_EXP : QUOTE_PRECISION_EXP;
       const sizeBigNum = BigNum.fromPrint(size, sizePrecisionExp);
 
       let isUsingSwift = false;
@@ -175,15 +229,14 @@ export const usePerpTrading = ({
       let builderParams = undefined;
 
       if (BUILDER_AUTHORITY && revenueShareEscrow) {
-        const builderIdx = revenueShareEscrow.approvedBuilders.findIndex(
-          (builder) => builder.authority.equals(BUILDER_AUTHORITY!),
+        const builderIdx = revenueShareEscrow.approvedBuilders.findIndex((builder) =>
+          builder.authority.equals(BUILDER_AUTHORITY!),
         );
 
         if (builderIdx !== -1) {
           builderParams = {
             builderIdx,
-            builderFeeTenthBps:
-              revenueShareEscrow.approvedBuilders[builderIdx].maxFeeTenthBps,
+            builderFeeTenthBps: revenueShareEscrow.approvedBuilders[builderIdx].maxFeeTenthBps,
           };
         }
       }
@@ -239,10 +292,7 @@ export const usePerpTrading = ({
           break;
         }
         case "limit": {
-          const limitPriceBigNum = BigNum.fromPrint(
-            limitPrice,
-            QUOTE_PRECISION_EXP,
-          );
+          const limitPriceBigNum = BigNum.fromPrint(limitPrice, QUOTE_PRECISION_EXP);
           let toastId = "";
           isUsingSwift = isSwiftClientHealthy && useSwift;
           orderConfig = {
@@ -294,10 +344,7 @@ export const usePerpTrading = ({
         }
         case "takeProfit":
         case "stopLoss":
-          const triggerPriceBigNum = BigNum.fromPrint(
-            triggerPrice,
-            QUOTE_PRECISION_EXP,
-          );
+          const triggerPriceBigNum = BigNum.fromPrint(triggerPrice, QUOTE_PRECISION_EXP);
           const limitPriceTakeProfitBigNum = limitPrice
             ? BigNum.fromPrint(limitPrice, QUOTE_PRECISION_EXP)
             : undefined;
@@ -308,10 +355,7 @@ export const usePerpTrading = ({
           };
           break;
         case "oracleLimit":
-          const oraclePriceOffsetBigNum = BigNum.fromPrint(
-            oraclePriceOffset,
-            QUOTE_PRECISION_EXP,
-          );
+          const oraclePriceOffsetBigNum = BigNum.fromPrint(oraclePriceOffset, QUOTE_PRECISION_EXP);
           orderConfig = {
             orderType: "oracleLimit",
             oraclePriceOffset: oraclePriceOffsetBigNum,
@@ -329,15 +373,11 @@ export const usePerpTrading = ({
         assetType: sizeType,
         size: sizeBigNum,
         reduceOnly,
-        postOnly: postOnly
-          ? PostOnlyParams.MUST_POST_ONLY
-          : PostOnlyParams.NONE,
+        postOnly: postOnly ? PostOnlyParams.MUST_POST_ONLY : PostOnlyParams.NONE,
         builderParams: isUsingSwift ? builderParams : undefined,
       });
 
-      const orderSide = ENUM_UTILS.match(direction, PositionDirection.LONG)
-        ? "LONG"
-        : "SHORT";
+      const orderSide = ENUM_UTILS.match(direction, PositionDirection.LONG) ? "LONG" : "SHORT";
       const successMessage = `${orderType.toUpperCase()} ${orderSide} order placed successfully!`;
 
       if (!isUsingSwift) {
@@ -357,8 +397,7 @@ export const usePerpTrading = ({
       // Handle GeoBlockError specifically
       if (e instanceof GeoBlockError) {
         toast.error("Trading Restricted", {
-          description:
-            "Trading is not available in your region due to geographical restrictions.",
+          description: "Trading is not available in your region due to geographical restrictions.",
           duration: 6000,
         });
       } else {
@@ -398,6 +437,7 @@ export const usePerpTrading = ({
     useSwift,
     isLoading,
     selectedMarketConfig,
+    minOrderSize,
 
     // Actions
     setOrderType,
@@ -417,7 +457,6 @@ export const usePerpTrading = ({
 
     // Computed
     isFormValid: validateForm().isValid,
-    canSubmit:
-      !isLoading && perpMarketConfigs.length > 0 && validateForm().isValid,
+    canSubmit: !isLoading && perpMarketConfigs.length > 0 && validateForm().isValid,
   };
 };

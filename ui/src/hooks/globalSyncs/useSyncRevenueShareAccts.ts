@@ -71,6 +71,8 @@ export const useSyncRevenueShareEscrow = () => {
         publicKey,
       );
 
+      console.log("🚀 ~ Orders:", escrow?.orders);
+
       setUserAccountDataStore((s) => {
         s.revenueShareEscrow = escrow ?? undefined;
       });
