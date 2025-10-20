@@ -17,11 +17,9 @@ import {
 import { DriftEnvironment, useDriftStore } from "@/stores/DriftStore";
 
 const navigation = [
-  { name: "Home", href: "/" },
+  { name: "Perps", href: "/perps" },
   { name: "User", href: "/user" },
   { name: "Spot", href: "/spot" },
-  { name: "Perps", href: "/perps" },
-  { name: "Data", href: "/data" },
   { name: "Admin", href: "/admin" },
 ];
 
