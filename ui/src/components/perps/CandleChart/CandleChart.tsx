@@ -229,10 +229,20 @@ export const CandleChart: React.FC<CandleChartProps> = ({
       }
     };
 
+    // Use ResizeObserver for more accurate container size tracking
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+
+    if (chartContainerRef.current) {
+      resizeObserver.observe(chartContainerRef.current);
+    }
+
     window.addEventListener("resize", handleResize);
     handleResize(); // Initial resize
 
     return () => {
+      resizeObserver.disconnect();
       window.removeEventListener("resize", handleResize);
       if (chartRef.current) {
         chartRef.current.remove();
@@ -517,7 +527,7 @@ export const CandleChart: React.FC<CandleChartProps> = ({
   }, [candleClient]);
 
   return (
-    <Card className={`h-full ${className}`}>
+    <Card className={`h-full w-full ${className}`}>
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-lg">
@@ -553,8 +563,8 @@ export const CandleChart: React.FC<CandleChartProps> = ({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="p-0">
-        <div className="relative h-96">
+      <CardContent className="p-0 overflow-hidden">
+        <div className="relative h-96 w-full">
           {/* OHLC Tooltip */}
           {hoveredCandle && (
             <div className="absolute top-4 left-4 z-20 bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-lg p-3 text-sm">

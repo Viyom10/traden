@@ -100,9 +100,9 @@ export function PerpTradeForm({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={onSubmit} className="space-y-6">
+        <form onSubmit={onSubmit} className="space-y-3">
           {/* Position Side */}
-          <div className="space-y-2">
+          <div className="space-y-1">
             <div className="flex bg-gray-800 rounded-lg p-1">
               <button
                 type="button"
@@ -261,9 +261,9 @@ export function PerpTradeForm({
 
           {/* Take Profit/Stop Loss for Market and Limit Orders */}
           {(orderType === "market" || orderType === "limit") && (
-            <div className="space-y-4">
-              <div className="border-t border-gray-700 pt-4">
-                <h4 className="text-sm font-medium text-gray-300 mb-3">
+            <div className="space-y-2">
+              <div className="border-t border-gray-700 pt-2">
+                <h4 className="text-sm font-medium text-gray-300 mb-2">
                   Optional Take Profit / Stop Loss
                 </h4>
                 <div className="grid md:grid-cols-2 gap-4">
@@ -291,7 +291,7 @@ export function PerpTradeForm({
           )}
 
           {/* Order Flags */}
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -332,13 +332,13 @@ export function PerpTradeForm({
           {/* Order Preview */}
           {size && selectedMarketConfig && (
             <div
-              className={`rounded-lg p-4 border ${
+              className={`rounded-lg p-3 border ${
                 isLongSide
                   ? "bg-green-600/10 border-green-600/20"
                   : "bg-red-600/10 border-red-600/20"
               }`}
             >
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-2">
                 {isLongSide ? (
                   <TrendingUp className="h-5 w-5 text-green-400 mt-0.5" />
                 ) : (
@@ -346,13 +346,13 @@ export function PerpTradeForm({
                 )}
                 <div>
                   <h4
-                    className={`font-medium mb-1 ${
+                    className={`font-medium mb-0.5 ${
                       isLongSide ? "text-green-400" : "text-red-400"
                     }`}
                   >
                     Order Preview
                   </h4>
-                  <div className="text-sm text-gray-300 space-y-1">
+                  <div className="text-sm text-gray-300 space-y-0.5">
                     <p>• Market: {selectedMarketConfig.symbol}</p>
                     <p>• Side: {isLongSide ? "Long" : "Short"}</p>
                     <p>

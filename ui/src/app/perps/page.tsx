@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "../../components/ui/card";
-import { TrendingUp, AlertCircle, DollarSign } from "lucide-react";
+import { TrendingUp, AlertCircle } from "lucide-react";
 import { useDriftStore } from "@/stores/DriftStore";
 import { useMarkPriceStore } from "@/stores/MarkPriceStore";
 import { useOraclePriceStore } from "@/stores/OraclePriceStore";
@@ -21,6 +21,7 @@ import { FormSelect } from "../../components/ui/form-select";
 import { DEFAULT_PERP_MARKET_INDEX } from "../../constants/defaultMarkets";
 import { MarketId, TRADING_UTILS } from "@drift-labs/common";
 import { BigNum, PRICE_PRECISION_EXP, ZERO } from "@drift-labs/sdk";
+import { useOrderbookWebSocket } from "../../hooks/perps/useOrderbookWebSocket";
 
 export default function PerpsPage() {
   const { connected } = useWallet();
@@ -29,11 +30,15 @@ export default function PerpsPage() {
   const [selectedMarketIndex, setSelectedMarketIndex] = useState<number>(
     DEFAULT_PERP_MARKET_INDEX,
   );
+  const [rightPanelView, setRightPanelView] = useState<"order" | "orderbook">("order");
 
   const selectedMarketId = useMemo(
     () => MarketId.createPerpMarket(selectedMarketIndex),
     [selectedMarketIndex],
   );
+
+  // Connect to orderbook WebSocket immediately when page loads
+  const { orderbookData, isLoading: isOrderbookLoading } = useOrderbookWebSocket(selectedMarketId);
 
   const markPriceData = useMarkPriceStore(
     (s) => s.lookup[selectedMarketId.key],
@@ -98,101 +103,106 @@ export default function PerpsPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="w-full mx-auto flex flex-col gap-3">
-        {/* Header */}
-        <div>
-          <div className="flex items-center gap-3 mb-4">
-            <TrendingUp className="h-8 w-8 text-purple-400" />
-            <h1 className="text-3xl font-bold text-white">
-              Perpetuals Trading
-            </h1>
+        {/* Two Column Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
+          {/* Left Column - 60% (3 out of 5 columns) */}
+          <div className="lg:col-span-3 flex flex-col gap-3">
+            {/* Market Selection and Price Display */}
+            <Card>
+              <CardContent className="px-6">
+                <div className="grid grid-cols-3 gap-6 items-center">
+                  {/* Market Selector */}
+                  <div>
+                    <FormSelect
+                      label="Select Market"
+                      value={selectedMarketIndex.toString()}
+                      onValueChange={(value) => setSelectedMarketIndex(Number(value))}
+                      options={perpMarketConfigs.map((config) => ({
+                        value: config.marketIndex.toString(),
+                        label: `${config.symbol} (${config.baseAssetSymbol})`,
+                      }))}
+                    />
+                  </div>
+
+                  {/* Mark Price Display */}
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-400">
+                      {markPriceData
+                        ? `${BigNum.from(
+                            markPriceData?.markPrice ?? ZERO,
+                            PRICE_PRECISION_EXP,
+                          ).toNotional(undefined, undefined, tickSizeDecimals)}`
+                        : "--"}
+                    </div>
+                    <p className="text-sm text-gray-400 mt-1">
+                      {selectedMarketConfig?.symbol || "No market selected"}
+                    </p>
+                  </div>
+
+                  {/* Oracle Price Display */}
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-400">
+                      {oraclePriceData
+                        ? `${BigNum.from(
+                            oraclePriceData?.price ?? ZERO,
+                            PRICE_PRECISION_EXP,
+                          ).toNotional(undefined, undefined, tickSizeDecimals)}`
+                        : "--"}
+                    </div>
+                    <p className="text-sm text-gray-400 mt-1">
+                      Oracle Price
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Chart */}
+            <CandleChart selectedMarketId={selectedMarketId} />
           </div>
-          <p className="text-gray-400">
-            Trade perpetual futures with leverage on your favorite tokens.
-          </p>
-        </div>
 
-        {/* Market Selection and Price Display */}
-        <div className="grid md:grid-cols-3 gap-3">
-          {/* Market Selector */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <TrendingUp className="h-5 w-5 text-purple-400" />
-                Market Selection
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <FormSelect
-                label="Select Market"
-                value={selectedMarketIndex.toString()}
-                onValueChange={(value) => setSelectedMarketIndex(Number(value))}
-                options={perpMarketConfigs.map((config) => ({
-                  value: config.marketIndex.toString(),
-                  label: `${config.symbol} (${config.baseAssetSymbol})`,
-                }))}
+          {/* Right Column - 40% (2 out of 5 columns) */}
+          <div className="lg:col-span-2 flex flex-col gap-3">
+            {/* Toggle Buttons */}
+            <div className="flex bg-gray-800 rounded-lg p-1">
+              <button
+                type="button"
+                onClick={() => setRightPanelView("order")}
+                className={`flex-1 px-3 py-2 rounded text-sm font-medium transition-colors ${
+                  rightPanelView === "order"
+                    ? "bg-purple-600 text-white"
+                    : "text-gray-400 hover:text-white"
+                }`}
+              >
+                Place Order
+              </button>
+              <button
+                type="button"
+                onClick={() => setRightPanelView("orderbook")}
+                className={`flex-1 px-3 py-2 rounded text-sm font-medium transition-colors ${
+                  rightPanelView === "orderbook"
+                    ? "bg-purple-600 text-white"
+                    : "text-gray-400 hover:text-white"
+                }`}
+              >
+                Order Book
+              </button>
+            </div>
+
+            {/* Conditional Rendering based on toggle */}
+            {rightPanelView === "order" ? (
+              <PerpTradeForm
+                perpMarketConfigs={perpMarketConfigs}
+                selectedMarketIndex={selectedMarketIndex}
               />
-            </CardContent>
-          </Card>
-
-          {/* Mark Price Display */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <DollarSign className="h-5 w-5 text-green-400" />
-                Mark Price
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-400">
-                {markPriceData
-                  ? `${BigNum.from(
-                      markPriceData?.markPrice ?? ZERO,
-                      PRICE_PRECISION_EXP,
-                    ).toNotional(undefined, undefined, tickSizeDecimals)}`
-                  : "--"}
-              </div>
-              <p className="text-sm text-gray-400 mt-1">
-                {selectedMarketConfig?.symbol || "No market selected"}
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Oracle Price Display */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <DollarSign className="h-5 w-5 text-blue-400" />
-                Oracle Price
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-400">
-                {oraclePriceData
-                  ? `${BigNum.from(
-                      oraclePriceData?.price ?? ZERO,
-                      PRICE_PRECISION_EXP,
-                    ).toNotional(undefined, undefined, tickSizeDecimals)}`
-                  : "--"}
-              </div>
-              <p className="text-sm text-gray-400 mt-1">
-                {selectedMarketConfig?.symbol || "No market selected"}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Price Chart */}
-        <div className="w-full">
-          <CandleChart selectedMarketId={selectedMarketId} />
-        </div>
-
-        {/* Trading Form and Orderbook */}
-        <div className="grid md:grid-cols-2 gap-3">
-          <Orderbook selectedMarketId={selectedMarketId} />
-          <PerpTradeForm
-            perpMarketConfigs={perpMarketConfigs}
-            selectedMarketIndex={selectedMarketIndex}
-          />
+            ) : (
+              <Orderbook 
+                selectedMarketId={selectedMarketId} 
+                orderbookData={orderbookData}
+                isLoading={isOrderbookLoading}
+              />
+            )}
+          </div>
         </div>
 
         {/* Positions Table */}

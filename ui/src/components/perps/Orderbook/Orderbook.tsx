@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { FormSelect } from "../../ui/form-select";
 import { useDriftStore } from "@/stores/DriftStore";
@@ -11,45 +11,16 @@ import {
   PRICE_PRECISION_EXP,
   ZERO,
   BN,
-  MarketType,
 } from "@drift-labs/sdk";
 import { BookOpenText } from "lucide-react";
+import { DlobOrderbookData } from "@/hooks/perps/useOrderbookWebSocket";
 
 const ORDERBOOK_MAX_LEVELS = 20;
 
-// Helper type for accessing MarketId properties
-interface MarketIdWithProperties {
-  index: number;
-  type: MarketType;
-  key: string;
-}
-
-// Get WebSocket URL based on environment
-
-const getWebSocketUrl = (env: string) => {
-  return env === 'mainnet-beta' 
-    ? 'wss://dlob.drift.trade/ws'
-    : 'wss://master.dlob.drift.trade/ws';
-};
-
 interface OrderbookProps {
   selectedMarketId: MarketId;
-}
-
-interface RawOrderbookLevel {
-  price: string;
-  size: string;
-  sources?: Record<string, { size: string }>;
-}
-
-interface DlobOrderbookData {
-  bids: RawOrderbookLevel[];
-  asks: RawOrderbookLevel[];
-  slot?: number;
-  marketName?: string;
-  marketType?: string;
-  marketIndex?: number;
-  oracle?: string;
+  orderbookData: DlobOrderbookData | null;
+  isLoading: boolean;
 }
 
 interface ProcessedOrderbookLevel {
@@ -109,15 +80,15 @@ const OrderbookRow: React.FC<OrderbookRowProps> = ({ item }) => {
   );
 };
 
-export const Orderbook: React.FC<OrderbookProps> = ({ selectedMarketId }) => {
+export const Orderbook: React.FC<OrderbookProps> = ({ 
+  selectedMarketId, 
+  orderbookData,
+  isLoading 
+}) => {
   const drift = useDriftStore((s) => s.drift);
-  const environment = useDriftStore((s) => s.environment);
-  const [orderbookData, setOrderbookData] = useState<DlobOrderbookData | null>(null);
   const [selectedGrouping, setSelectedGrouping] = useState<number>(1);
-  const [isLoading, setIsLoading] = useState(true);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const hasScrolledToCenter = useRef(false);
-  const wsRef = useRef<WebSocket | null>(null);
 
   const markPriceData = useMarkPriceStore(
     (s) => s.lookup[selectedMarketId.key],
@@ -176,121 +147,10 @@ export const Orderbook: React.FC<OrderbookProps> = ({ selectedMarketId }) => {
     setSelectedGrouping(parseInt(value));
   };
 
-  const getMarketName = useCallback((marketId: MarketId) => {
-    if (!drift?.driftClient) return null;
-    
-    try {
-      const marketIdWithProps = marketId as unknown as MarketIdWithProperties;
-      const marketIndex = marketIdWithProps.index ?? 0;
-      const marketType = marketIdWithProps.type ?? MarketType.PERP;
-      
-      if (marketType === MarketType.PERP) {
-        const perpMarket = drift.driftClient.getPerpMarketAccount(marketIndex);
-        if (!perpMarket) return null;
-        
-        // Get the market name and clean it up
-        const marketName = Buffer.from(perpMarket.name).toString('utf-8').trim().replace(/\0/g, '');
-        // The market name from the blockchain already includes "-PERP" suffix, so just return it
-        return marketName;
-      } else {
-        const spotMarket = drift.driftClient.getSpotMarketAccount(marketIndex);
-        if (!spotMarket) return null;
-        
-        const marketName = Buffer.from(spotMarket.name).toString('utf-8').trim().replace(/\0/g, '');
-        return marketName;
-      }
-    } catch (error) {
-      console.error('Error getting market name:', error);
-      return null;
-    }
-  }, [drift?.driftClient]);
-
+  // Reset scroll position when market changes
   useEffect(() => {
-    if (!drift?.driftClient) return;
-
-    const marketName = getMarketName(selectedMarketId);
-    if (!marketName) {
-      console.error('Could not determine market name');
-      return;
-    }
-
-    setIsLoading(true);
-    setOrderbookData(null);
     hasScrolledToCenter.current = false;
-
-    const wsUrl = getWebSocketUrl(environment);
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    const marketIdWithProps = selectedMarketId as unknown as MarketIdWithProperties;
-    const marketType = marketIdWithProps.type ?? MarketType.PERP;
-    const marketTypeStr = marketType === MarketType.PERP ? 'perp' : 'spot';
-
-    ws.onopen = () => {
-      console.log('WebSocket connected to', wsUrl);
-      
-      const subscribeMessage = {
-        type: 'subscribe',
-        marketType: marketTypeStr,
-        channel: 'orderbook',
-        market: marketName,
-      };
-      
-      console.log('Subscribing to orderbook:', subscribeMessage);
-      ws.send(JSON.stringify(subscribeMessage));
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        
-        if (message.channel === 'heartbeat') {
-          return;
-        }
-        
-        if (message.channel && message.data) {
-          const parsedData = typeof message.data === 'string' 
-            ? JSON.parse(message.data) 
-            : message.data;
-          
-          setOrderbookData(parsedData);
-          setIsLoading(false);
-        }
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
-      }
-    };
-
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      setIsLoading(false);
-    };
-
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
-    };
-
-    const timeoutId = setTimeout(() => {
-      setIsLoading(false);
-    }, 5000);
-
-    return () => {
-      clearTimeout(timeoutId);
-      
-      if (ws.readyState === WebSocket.OPEN) {
-        const unsubscribeMessage = {
-          type: 'unsubscribe',
-          marketType: marketTypeStr,
-          channel: 'orderbook',
-          market: marketName,
-        };
-        ws.send(JSON.stringify(unsubscribeMessage));
-      }
-      
-      ws.close();
-      wsRef.current = null;
-    };
-  }, [drift?.driftClient, selectedMarketId, environment, getMarketName]);
+  }, [selectedMarketId]);
 
   const { combinedOrderbookData } = useMemo(() => {
     if (!orderbookData || !orderbookData.bids || !orderbookData.asks) {
