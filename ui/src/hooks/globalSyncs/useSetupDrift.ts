@@ -13,6 +13,7 @@ import {
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useEffect, useMemo, useRef } from "react";
 import { useDebounce, useLatest } from "react-use";
+import { installTradingFeeInterceptor } from "@/lib/DriftClientWrapper";
 
 type PartialAuthorityDriftConfig = Omit<AuthorityDriftConfig, "wallet">;
 
@@ -115,6 +116,9 @@ export const useSetupDrift = () => {
           ...driftConfig,
           wallet: walletToUse,
         });
+
+        // Install trading fee interceptor for perp orders
+        installTradingFeeInterceptor(authorityDriftInstance);
 
         try {
           await authorityDriftInstance.subscribe();

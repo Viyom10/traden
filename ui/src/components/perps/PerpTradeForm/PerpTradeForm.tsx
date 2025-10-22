@@ -37,7 +37,7 @@ export function PerpTradeForm({
     stopLossPrice,
     reduceOnly: _reduceOnly,
     postOnly,
-    useSwift: _useSwift,
+    useSwift,
     isLoading,
     selectedMarketConfig,
     minOrderSize,
@@ -52,7 +52,7 @@ export function PerpTradeForm({
     setStopLossPrice,
     setReduceOnly: _setReduceOnly,
     setPostOnly,
-    setUseSwift: _setUseSwift,
+    setUseSwift,
     handleSubmit,
     canSubmit,
   } = usePerpTrading({ perpMarketConfigs, selectedMarketIndex });
@@ -307,6 +307,24 @@ export function PerpTradeForm({
               </div>
             )}
 
+          {/* Swift Toggle for Market and Limit Orders */}
+          {(orderType === "market" || orderType === "limit") && (
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useSwift}
+                  onChange={(e) => setUseSwift(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+                />
+                <span className="text-sm text-gray-200">Use Swift</span>
+              </label>
+              <span className="text-xs text-gray-400">
+                (Faster execution, but trading fees not applied)
+              </span>
+            </div>
+          )}
+
           {/* Order Preview */}
           {size && selectedMarketConfig && (
             <div
@@ -369,6 +387,11 @@ export function PerpTradeForm({
                       </p>
                     )}
                     {postOnly && <p className="text-purple-400">• Post Only</p>}
+                    {(orderType === "market" || orderType === "limit") && (
+                      <p className={useSwift ? "text-blue-400" : "text-yellow-400"}>
+                        • {useSwift ? "Swift Enabled" : "Swift Disabled (Fee Applied)"}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
