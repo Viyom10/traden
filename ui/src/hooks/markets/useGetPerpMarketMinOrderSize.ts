@@ -20,7 +20,7 @@ export const useGetPerpMarketMinOrderSize = (marketIndex: number): BN => {
       if (!perpMarketAccount) {
         return ZERO;
       }
-
+      console.log(`Perp Market Account for index ${marketIndex}:`, perpMarketAccount);
       // Get the minimum order size from the AMM
       return perpMarketAccount.amm.minOrderSize;
     } catch (error) {

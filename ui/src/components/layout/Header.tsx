@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useWallet } from "@solana/wallet-adapter-react";
 import WalletButton from "../wallet/WalletButton";
 import { UserAccountSelector } from "../user/UserAccountSelector";
 import { Activity, Menu, X } from "lucide-react";
@@ -16,12 +17,7 @@ import {
 } from "../ui/select";
 import { DriftEnvironment, useDriftStore } from "@/stores/DriftStore";
 
-const navigation = [
-  { name: "Perps", href: "/perps" },
-  { name: "User", href: "/user" },
-  { name: "Spot", href: "/spot" },
-  { name: "Admin", href: "/admin" },
-];
+const ADMIN_WALLET_ADDRESS = "6iUM9jw4qFYWdqGX5f9Bg6H674sGeFgUbAXcTLo7FXmz";
 
 const ENVIRONMENT_OPTIONS: { value: DriftEnvironment; label: string }[] = [
   { value: "devnet", label: "Devnet" },
@@ -31,11 +27,27 @@ const ENVIRONMENT_OPTIONS: { value: DriftEnvironment; label: string }[] = [
 const Header: React.FC = () => {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { publicKey } = useWallet();
   const environment = useDriftStore((s) => s.environment);
   const setEnvironment = useDriftStore((s) => s.setEnvironment);
   
   // Check if we should show the environment dropdown
   const isDevelopment = process.env.NEXT_PUBLIC_ENVIRONMENT === "development";
+  
+  // Check if the connected wallet is the admin wallet
+  const isAdmin = publicKey?.toBase58() === ADMIN_WALLET_ADDRESS;
+  
+  // Build navigation array - start with default navigation
+  const navigation = [
+    { name: "Perps", href: "/perps" },
+    { name: "User", href: "/user" },
+    { name: "Spot", href: "/spot" },
+  ];
+  
+  // Only add Admin tab if the connected wallet is the admin wallet
+  if (isAdmin) {
+    navigation.push({ name: "Admin", href: "/admin" });
+  }
   
   // Set default environment to mainnet if not in development mode
   React.useEffect(() => {
@@ -56,7 +68,7 @@ const Header: React.FC = () => {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
               <Activity className="h-5 w-5 text-white" />
             </div>
-            <span className="text-xl font-bold text-white">DriftUI</span>
+            <span className="text-xl font-bold text-white">Traden</span>
           </Link>
 
           {/* Desktop Navigation */}

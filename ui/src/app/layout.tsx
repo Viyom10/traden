@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DriftUI - Solana Perps Trading",
+  title: "Traden - Trade inside of Whop",
   description:
     "Beautiful Solana perpetuals trading interface built with Drift Protocol",
 };

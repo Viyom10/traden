@@ -10,3 +10,5 @@ export const BUILDER_FEE_TENTH_BPS = process.env
   .NEXT_PUBLIC_BUILDER_FEE_TENTH_BPS
   ? parseInt(process.env.NEXT_PUBLIC_BUILDER_FEE_TENTH_BPS)
   : 20; // 2 bps
+
+  

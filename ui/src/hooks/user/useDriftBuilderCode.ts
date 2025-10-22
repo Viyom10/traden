@@ -28,6 +28,8 @@ export const useDriftBuilderCode = () => {
       const builderAuthority = BUILDER_AUTHORITY;
       const builderFeeTenthBps = BUILDER_FEE_TENTH_BPS;
 
+      console.log("Builder Fee ", builderFeeTenthBps);
+
       if (!builderAuthority) {
         toast.error("Builder authority not found");
         return;

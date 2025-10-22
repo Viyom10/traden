@@ -13,6 +13,9 @@ import { useUserAccountDataStore } from "@/stores/UserAccountDataStore";
 import { useSpotMarketConfigs } from "@/hooks/spot/useSpotMarketConfigs";
 import { DepositDialog } from "./DepositDialog";
 import { WithdrawDialog } from "./WithdrawDialog";
+import { CreateAccountDialog } from "./CreateAccountDialog";
+import { useDriftStore } from "@/stores/DriftStore";
+import { BigNum } from "@drift-labs/sdk";
 
 interface WalletSidebarProps {
   open: boolean;
@@ -23,8 +26,11 @@ const WalletSidebar: React.FC<WalletSidebarProps> = ({ open, onOpenChange }) => 
   const { publicKey, disconnect, connected } = useWallet();
   const [depositDialogOpen, setDepositDialogOpen] = useState(false);
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
+  const [createAccountDialogOpen, setCreateAccountDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"subaccounts" | "bridge">("subaccounts");
 
+  const drift = useDriftStore((s) => s.drift);
+  const allSpotMarketConfigs = useDriftStore((s) => s.getSpotMarketConfigs());
   const userAccountLookup = useUserAccountDataStore((s) => s.lookup);
   const currentAccount = useUserAccountDataStore((s) => s.getCurrentAccount());
   const spotMarketConfigs = useSpotMarketConfigs(currentAccount?.poolId);
@@ -53,7 +59,44 @@ const WalletSidebar: React.FC<WalletSidebarProps> = ({ open, onOpenChange }) => 
     onOpenChange(false);
   };
 
+  const handleCreateAndDeposit = async (params: {
+    selectedMarketIndex: number;
+    amount: string;
+  }) => {
+    if (!connected || !drift || !publicKey) {
+      throw new Error("Wallet not connected or Drift not initialized");
+    }
+
+    const selectedSpotMarketConfig = allSpotMarketConfigs.find(
+      (marketConfig) => marketConfig.marketIndex === params.selectedMarketIndex,
+    );
+
+    if (!selectedSpotMarketConfig) {
+      throw new Error("Invalid market configuration");
+    }
+
+    const depositAmount = BigNum.fromPrint(
+      params.amount,
+      selectedSpotMarketConfig.precisionExp,
+    );
+
+    // Find next available subaccount ID
+    const nextSubAccountId = userAccounts.length > 0
+      ? Math.max(...userAccounts.map(acc => acc.subAccountId)) + 1
+      : 0;
+
+    await drift.createUserAndDeposit({
+      depositAmount,
+      depositSpotMarketIndex: params.selectedMarketIndex,
+      newAccountName: userAccounts.length > 0 ? `Account ${nextSubAccountId}` : "Main Account",
+      poolId: 0,
+      subAccountId: nextSubAccountId,
+    });
+  };
+
   const totalBalance = currentAccount?.marginInfo?.netUsdValue?.toNotional() || "$0.00";
+  const hasZeroBalance = totalBalance === "$0.00";
+  const hasNoSubaccounts = userAccounts.length === 0;
 
   return (
     <>
@@ -130,14 +173,15 @@ const WalletSidebar: React.FC<WalletSidebarProps> = ({ open, onOpenChange }) => 
                     <p className="text-sm text-gray-400">Total Balance</p>
                   </div>
 
-                  {/* Deposit and Withdraw Buttons */}
-                  <div className="grid grid-cols-2 gap-3">
+                  {/* Conditional Buttons based on account state */}
+                  {hasNoSubaccounts && hasZeroBalance ? (
+                    // Show Create Account button when no subaccounts exist
                     <button
                       onClick={() => {
-                        setDepositDialogOpen(true);
+                        setCreateAccountDialogOpen(true);
                         onOpenChange(false);
                       }}
-                      className="flex flex-col items-center justify-center p-4 bg-gradient-to-br from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 rounded-lg border border-purple-500/30 transition-all"
+                      className="w-full flex flex-col items-center justify-center p-4 bg-gradient-to-br from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 rounded-lg border border-purple-500/30 transition-all"
                     >
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center mb-2">
                         <svg
@@ -150,38 +194,67 @@ const WalletSidebar: React.FC<WalletSidebarProps> = ({ open, onOpenChange }) => 
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             strokeWidth={2}
-                            d="M12 4v16m0 0l-4-4m4 4l4-4"
+                            d="M12 4v16m8-8H4"
                           />
                         </svg>
                       </div>
-                      <span className="text-sm font-medium text-white">Deposit</span>
+                      <span className="text-sm font-medium text-white">Create Account</span>
+                      <span className="text-xs text-gray-400 mt-1">Start trading on Drift</span>
                     </button>
+                  ) : (
+                    // Show Deposit and Withdraw buttons when account exists
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => {
+                          setDepositDialogOpen(true);
+                          onOpenChange(false);
+                        }}
+                        className="flex flex-col items-center justify-center p-4 bg-gradient-to-br from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 rounded-lg border border-purple-500/30 transition-all"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center mb-2">
+                          <svg
+                            className="w-5 h-5 text-white"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 4v16m0 0l-4-4m4 4l4-4"
+                            />
+                          </svg>
+                        </div>
+                        <span className="text-sm font-medium text-white">Deposit</span>
+                      </button>
 
-                    <button
-                      onClick={() => {
-                        setWithdrawDialogOpen(true);
-                        onOpenChange(false);
-                      }}
-                      className="flex flex-col items-center justify-center p-4 bg-gray-800 hover:bg-gray-700 rounded-lg border border-gray-700 transition-all"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center mb-2">
-                        <svg
-                          className="w-5 h-5 text-white"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 20V4m0 0l-4 4m4-4l4 4"
-                          />
-                        </svg>
-                      </div>
-                      <span className="text-sm font-medium text-white">Withdraw</span>
-                    </button>
-                  </div>
+                      <button
+                        onClick={() => {
+                          setWithdrawDialogOpen(true);
+                          onOpenChange(false);
+                        }}
+                        className="flex flex-col items-center justify-center p-4 bg-gray-800 hover:bg-gray-700 rounded-lg border border-gray-700 transition-all"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center mb-2">
+                          <svg
+                            className="w-5 h-5 text-white"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 20V4m0 0l-4 4m4-4l4 4"
+                            />
+                          </svg>
+                        </div>
+                        <span className="text-sm font-medium text-white">Withdraw</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Tabs for Subaccounts and Bridge */}
@@ -212,45 +285,74 @@ const WalletSidebar: React.FC<WalletSidebarProps> = ({ open, onOpenChange }) => 
                   {/* Tab Content */}
                   <div className="p-4">
                     {activeTab === "subaccounts" ? (
-                      userAccounts.length > 0 ? (
-                        <div className="space-y-2">
-                          {userAccounts.map((account) => (
-                            <div
-                              key={account.subAccountId}
-                              className="p-3 bg-gray-800/50 rounded-lg border border-gray-700 hover:border-gray-600 transition-colors cursor-pointer"
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
-                                    <span className="text-white text-xs font-bold">
-                                      {account.name.charAt(0)}
-                                    </span>
+                      <div className="space-y-3">
+                        {userAccounts.length > 0 ? (
+                          <>
+                            {/* Existing Subaccounts */}
+                            {userAccounts.map((account) => (
+                              <div
+                                key={account.subAccountId}
+                                className="p-3 bg-gray-800/50 rounded-lg border border-gray-700 hover:border-gray-600 transition-colors cursor-pointer"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
+                                      <span className="text-white text-xs font-bold">
+                                        {account.name.charAt(0)}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <p className="text-sm font-medium text-white">
+                                        {account.name}
+                                      </p>
+                                      <p className="text-xs text-gray-400">
+                                        #{account.subAccountId}
+                                      </p>
+                                    </div>
                                   </div>
-                                  <div>
+                                  <div className="text-right">
                                     <p className="text-sm font-medium text-white">
-                                      {account.name}
-                                    </p>
-                                    <p className="text-xs text-gray-400">
-                                      #{account.subAccountId}
+                                      {account.marginInfo.netUsdValue.toNotional()}
                                     </p>
                                   </div>
-                                </div>
-                                <div className="text-right">
-                                  <p className="text-sm font-medium text-white">
-                                    {account.marginInfo.netUsdValue.toNotional()}
-                                  </p>
                                 </div>
                               </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8">
-                          <p className="text-gray-400 text-sm">
-                            No subaccounts found. Create one in the User page.
-                          </p>
-                        </div>
-                      )
+                            ))}
+                            
+                            {/* Create New Subaccount Button */}
+                            <button
+                              onClick={() => {
+                                setCreateAccountDialogOpen(true);
+                                onOpenChange(false);
+                              }}
+                              className="w-full p-3 bg-gradient-to-br from-purple-500/10 to-blue-500/10 hover:from-purple-500/20 hover:to-blue-500/20 rounded-lg border border-purple-500/20 hover:border-purple-500/30 transition-all flex items-center justify-center gap-2"
+                            >
+                              <svg
+                                className="w-4 h-4 text-purple-400"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M12 4v16m8-8H4"
+                                />
+                              </svg>
+                              <span className="text-sm font-medium text-purple-400">
+                                Create New Subaccount
+                              </span>
+                            </button>
+                          </>
+                        ) : (
+                          <div className="text-center py-8">
+                            <p className="text-gray-400 text-sm">
+                              No subaccounts found. Create one to get started.
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <div className="text-center py-8">
                         <p className="text-gray-400 text-sm">
@@ -290,6 +392,13 @@ const WalletSidebar: React.FC<WalletSidebarProps> = ({ open, onOpenChange }) => 
         onOpenChange={setWithdrawDialogOpen}
         spotMarketConfigs={spotMarketConfigs}
         userAccounts={userAccounts}
+      />
+      <CreateAccountDialog
+        open={createAccountDialogOpen}
+        onOpenChange={setCreateAccountDialogOpen}
+        spotMarketConfigs={allSpotMarketConfigs}
+        onSubmit={handleCreateAndDeposit}
+        isNewSubaccount={userAccounts.length > 0}
       />
     </>
   );

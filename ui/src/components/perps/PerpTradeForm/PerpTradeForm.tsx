@@ -35,9 +35,9 @@ export function PerpTradeForm({
     oraclePriceOffset,
     takeProfitPrice,
     stopLossPrice,
-    reduceOnly,
+    reduceOnly: _reduceOnly,
     postOnly,
-    useSwift,
+    useSwift: _useSwift,
     isLoading,
     selectedMarketConfig,
     minOrderSize,
@@ -50,9 +50,9 @@ export function PerpTradeForm({
     setOraclePriceOffset,
     setTakeProfitPrice,
     setStopLossPrice,
-    setReduceOnly,
+    setReduceOnly: _setReduceOnly,
     setPostOnly,
-    setUseSwift,
+    setUseSwift: _setUseSwift,
     handleSubmit,
     canSubmit,
   } = usePerpTrading({ perpMarketConfigs, selectedMarketIndex });
@@ -291,20 +291,10 @@ export function PerpTradeForm({
           )}
 
           {/* Order Flags */}
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={reduceOnly}
-                onChange={(e) => setReduceOnly(e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
-              />
-              <span className="text-sm text-gray-200">Reduce Only</span>
-            </label>
-
-            {orderType !== "market" &&
-              orderType !== "stopLoss" &&
-              orderType !== "takeProfit" && (
+          {orderType !== "market" &&
+            orderType !== "stopLoss" &&
+            orderType !== "takeProfit" && (
+              <div className="flex items-center gap-4">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -314,20 +304,8 @@ export function PerpTradeForm({
                   />
                   <span className="text-sm text-gray-200">Post Only</span>
                 </label>
-              )}
-
-            {(orderType === "limit" || orderType === "market") && (
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={useSwift}
-                  onChange={(e) => setUseSwift(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
-                />
-                <span className="text-sm text-gray-200">Use Swift</span>
-              </label>
+              </div>
             )}
-          </div>
 
           {/* Order Preview */}
           {size && selectedMarketConfig && (
@@ -389,9 +367,6 @@ export function PerpTradeForm({
                       <p className="text-red-400">
                         • Stop Loss: ${stopLossPrice}
                       </p>
-                    )}
-                    {reduceOnly && (
-                      <p className="text-orange-400">• Reduce Only</p>
                     )}
                     {postOnly && <p className="text-purple-400">• Post Only</p>}
                   </div>

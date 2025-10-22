@@ -22,6 +22,7 @@ import { useMarkPriceStore } from "@/stores/MarkPriceStore";
 import { useOraclePriceStore } from "@/stores/OraclePriceStore";
 import { MarketId } from "@drift-labs/common";
 import { useGetPerpMarketMinOrderSize } from "@/hooks/markets/useGetPerpMarketMinOrderSize";
+import { useUserStore } from "@/stores/UserStore";
 
 export type PerpOrderType = "market" | "limit" | "takeProfit" | "stopLoss" | "oracleLimit";
 export type AssetSizeType = "base" | "quote";
@@ -36,6 +37,8 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
   const isSwiftClientHealthy = useDriftStore((s) => s.isSwiftClientHealthy);
   const activeSubAccountId = useUserAccountDataStore((s) => s.activeSubAccountId);
   const revenueShareEscrow = useUserAccountDataStore((s) => s.revenueShareEscrow);
+  const whopUser = useUserStore((s) => s.whopUser);
+  const experienceId = useUserStore((s) => s.experienceId);
 
   const [orderType, setOrderType] = useState<PerpOrderType>("market");
   const [direction, setDirection] = useState<PositionDirection>(PositionDirection.LONG);
@@ -77,6 +80,57 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
   
   // Use mark price if available, otherwise fallback to oracle price
   const currentPrice = !markPrice.eq(ZERO) ? markPrice : oraclePrice;
+
+  // Function to record trade in database
+  const recordTrade = async (txSignature?: string) => {
+    if (!whopUser || !experienceId || !selectedMarketConfig) {
+      console.warn("Missing user info for trade recording");
+      return;
+    }
+
+    try {
+      const orderSide = ENUM_UTILS.match(direction, PositionDirection.LONG) ? "LONG" : "SHORT";
+      
+      const tradeData = {
+        userId: (whopUser as { id: string }).id,
+        experienceId,
+        marketIndex: selectedMarketIndex,
+        marketSymbol: selectedMarketConfig.symbol,
+        orderType,
+        direction: orderSide,
+        sizeType,
+        size,
+        limitPrice: limitPrice || undefined,
+        triggerPrice: triggerPrice || undefined,
+        oraclePriceOffset: oraclePriceOffset || undefined,
+        takeProfitPrice: takeProfitPrice || undefined,
+        stopLossPrice: stopLossPrice || undefined,
+        reduceOnly,
+        postOnly,
+        useSwift,
+        subAccountId: activeSubAccountId,
+        txSignature,
+      };
+
+      const response = await fetch("/api/trade", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(tradeData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Failed to record trade:", errorData);
+      } else {
+        console.log("Trade recorded successfully");
+      }
+    } catch (error) {
+      console.error("Error recording trade:", error);
+      // Don't throw - we don't want trade recording to block the user experience
+    }
+  };
 
   const validateForm = (): { isValid: boolean; errorMessage?: string } => {
     if (!selectedMarketConfig) {
@@ -380,14 +434,18 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
       const orderSide = ENUM_UTILS.match(direction, PositionDirection.LONG) ? "LONG" : "SHORT";
       const successMessage = `${orderType.toUpperCase()} ${orderSide} order placed successfully!`;
 
+      let txSignature: string | undefined;
       if (!isUsingSwift) {
-        const _txSig = result as TransactionSignature;
+        txSignature = result as TransactionSignature;
 
         toast.success("Order Placed", {
           description: successMessage,
           duration: 4000,
         });
       }
+
+      // Record trade in database (non-blocking)
+      recordTrade(txSignature);
 
       // Reset form
       resetForm();

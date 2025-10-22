@@ -72,6 +72,7 @@ export const useSyncRevenueShareEscrow = () => {
       );
 
       console.log("🚀 ~ Orders:", escrow?.orders);
+      
 
       setUserAccountDataStore((s) => {
         s.revenueShareEscrow = escrow ?? undefined;

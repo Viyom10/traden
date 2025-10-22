@@ -10,11 +10,13 @@ import {
   CardTitle,
 } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
-import { AlertCircle, Settings } from "lucide-react";
+import { AlertCircle, Settings, ShieldAlert } from "lucide-react";
 import { useDriftStore } from "@/stores/DriftStore";
 import { createRevenueShareAccountTxn } from "@drift-labs/common";
 import { toast } from "sonner";
 import { fetchRevenueShareAccount, RevenueShareAccount } from "@drift-labs/sdk";
+
+const ADMIN_WALLET_ADDRESS = "6iUM9jw4qFYWdqGX5f9Bg6H674sGeFgUbAXcTLo7FXmz";
 
 /**
  * This creates a RevenueShareAccount for the connected user, and its different from the environment-set builder authority.
@@ -26,6 +28,9 @@ export default function AdminPage() {
   const [revenueShareAccount, setRevenueShareAccount] = useState<
     RevenueShareAccount | undefined
   >(undefined);
+
+  // Check if the connected wallet is authorized
+  const isAuthorized = publicKey?.toBase58() === ADMIN_WALLET_ADDRESS;
 
   useEffect(() => {
     if (
@@ -97,6 +102,39 @@ export default function AdminPage() {
     }
   };
 
+  // Unauthorized access - user is not the admin
+  if (connected && !isAuthorized) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto">
+          <Card className="border-red-600/20 bg-red-600/5">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <ShieldAlert className="h-6 w-6 text-red-400" />
+                <CardTitle className="text-red-400">Access Denied</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8">
+                <ShieldAlert className="h-12 w-12 text-red-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-white mb-2">
+                  Unauthorized Access
+                </h3>
+                <p className="text-gray-400 mb-4">
+                  You do not have permission to access the admin panel.
+                </p>
+                <p className="text-sm text-gray-500 font-mono">
+                  Connected: {publicKey?.toBase58()}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Wallet not connected
   if (!connected) {
     return (
       <div className="container mx-auto px-4 py-8">
