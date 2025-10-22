@@ -14,7 +14,7 @@ export function useSetWhopUser({
   accessLevel,
   experienceId,
 }: WhopUserInitializerProps) {
-  const { setWhopUser, setAccessLevel, whopUser, setExperienceId } =
+  const { setWhopUser, setAccessLevel, whopUser, setExperienceId, setUserId } =
     useUserStore();
 
   useEffect(() => {
@@ -31,6 +31,8 @@ export function useSetWhopUser({
       (!whopUser || whopUser.id !== (user as { id: unknown }).id)
     ) {
       setWhopUser(user as { [key: string]: unknown });
+      // Set userId separately for easy access
+      setUserId((user as { id: string }).id);
     }
   }, [
     user,
@@ -40,6 +42,7 @@ export function useSetWhopUser({
     setWhopUser,
     setAccessLevel,
     setExperienceId,
+    setUserId,
   ]);
 
   return true;

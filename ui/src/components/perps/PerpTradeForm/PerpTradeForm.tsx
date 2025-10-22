@@ -37,10 +37,12 @@ export function PerpTradeForm({
     stopLossPrice,
     reduceOnly: _reduceOnly,
     postOnly,
-    useSwift,
     isLoading,
     selectedMarketConfig,
     minOrderSize,
+    accountBalance,
+    maxTradeSize,
+    maxLeverage,
     setOrderType,
     setDirection,
     setSizeType,
@@ -52,7 +54,6 @@ export function PerpTradeForm({
     setStopLossPrice,
     setReduceOnly: _setReduceOnly,
     setPostOnly,
-    setUseSwift,
     handleSubmit,
     canSubmit,
   } = usePerpTrading({ perpMarketConfigs, selectedMarketIndex });
@@ -204,6 +205,26 @@ export function PerpTradeForm({
             </div>
           )}
 
+          {/* Leverage and Max Trade Size Info */}
+          {accountBalance > 0 && (
+            <div className="rounded-lg p-3 bg-blue-600/10 border border-blue-600/20">
+              <div className="text-sm space-y-1">
+                <p className="text-blue-400 font-medium">
+                  Your Trading Capacity
+                </p>
+                <p className="text-gray-300">
+                  • Account Balance: ${accountBalance.toFixed(2)}
+                </p>
+                <p className="text-gray-300">
+                  • Max Leverage: {maxLeverage}x
+                </p>
+                <p className="text-green-400 font-medium">
+                  • Maximum Trade Size: ${maxTradeSize.toFixed(2)}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Price Inputs Based on Order Type */}
           <div className="grid md:grid-cols-2 gap-4">
             {/* Limit Price for limit orders */}
@@ -306,97 +327,6 @@ export function PerpTradeForm({
                 </label>
               </div>
             )}
-
-          {/* Swift Toggle for Market and Limit Orders */}
-          {(orderType === "market" || orderType === "limit") && (
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={useSwift}
-                  onChange={(e) => setUseSwift(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
-                />
-                <span className="text-sm text-gray-200">Use Swift</span>
-              </label>
-              <span className="text-xs text-gray-400">
-                (Faster execution, but trading fees not applied)
-              </span>
-            </div>
-          )}
-
-          {/* Order Preview */}
-          {size && selectedMarketConfig && (
-            <div
-              className={`rounded-lg p-3 border ${
-                isLongSide
-                  ? "bg-green-600/10 border-green-600/20"
-                  : "bg-red-600/10 border-red-600/20"
-              }`}
-            >
-              <div className="flex items-start gap-2">
-                {isLongSide ? (
-                  <TrendingUp className="h-5 w-5 text-green-400 mt-0.5" />
-                ) : (
-                  <TrendingDown className="h-5 w-5 text-red-400 mt-0.5" />
-                )}
-                <div>
-                  <h4
-                    className={`font-medium mb-0.5 ${
-                      isLongSide ? "text-green-400" : "text-red-400"
-                    }`}
-                  >
-                    Order Preview
-                  </h4>
-                  <div className="text-sm text-gray-300 space-y-0.5">
-                    <p>• Market: {selectedMarketConfig.symbol}</p>
-                    <p>• Side: {isLongSide ? "Long" : "Short"}</p>
-                    <p>
-                      • Type:{" "}
-                      {orderType
-                        .replace(/([A-Z])/g, " $1")
-                        .replace(/^./, (str) => str.toUpperCase())}
-                    </p>
-                    <p>
-                      • Size: {size}{" "}
-                      {sizeType === "base"
-                        ? selectedMarketConfig.baseAssetSymbol
-                        : "USDC"}
-                    </p>
-                    {orderType === "limit" && limitPrice && (
-                      <p>• Limit Price: ${limitPrice}</p>
-                    )}
-                    {(orderType === "takeProfit" || orderType === "stopLoss") &&
-                      triggerPrice && (
-                        <>
-                          <p>• Trigger Price: ${triggerPrice}</p>
-                          {limitPrice && <p>• Limit Price: ${limitPrice}</p>}
-                        </>
-                      )}
-                    {orderType === "oracleLimit" && oraclePriceOffset && (
-                      <p>• Price Offset: ${oraclePriceOffset}</p>
-                    )}
-                    {takeProfitPrice && (
-                      <p className="text-green-400">
-                        • Take Profit: ${takeProfitPrice}
-                      </p>
-                    )}
-                    {stopLossPrice && (
-                      <p className="text-red-400">
-                        • Stop Loss: ${stopLossPrice}
-                      </p>
-                    )}
-                    {postOnly && <p className="text-purple-400">• Post Only</p>}
-                    {(orderType === "market" || orderType === "limit") && (
-                      <p className={useSwift ? "text-blue-400" : "text-yellow-400"}>
-                        • {useSwift ? "Swift Enabled" : "Swift Disabled (Fee Applied)"}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           <Button
             type="submit"

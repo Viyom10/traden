@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "../ui/select";
 import { DriftEnvironment, useDriftStore } from "@/stores/DriftStore";
+import { useUserStore } from "@/stores/UserStore";
 
 const ADMIN_WALLET_ADDRESS = "6iUM9jw4qFYWdqGX5f9Bg6H674sGeFgUbAXcTLo7FXmz";
 
@@ -30,6 +31,7 @@ const Header: React.FC = () => {
   const { publicKey } = useWallet();
   const environment = useDriftStore((s) => s.environment);
   const setEnvironment = useDriftStore((s) => s.setEnvironment);
+  const accessLevel = useUserStore((s) => s.accessLevel);
   
   // Check if we should show the environment dropdown
   const isDevelopment = process.env.NEXT_PUBLIC_ENVIRONMENT === "development";
@@ -37,12 +39,20 @@ const Header: React.FC = () => {
   // Check if the connected wallet is the admin wallet
   const isAdmin = publicKey?.toBase58() === ADMIN_WALLET_ADDRESS;
   
+  // Check if the user has admin access level (for Whop creators)
+  const isCreator = accessLevel === "admin";
+  
   // Build navigation array - start with default navigation
   const navigation = [
     { name: "Perps", href: "/perps" },
     { name: "User", href: "/user" },
     { name: "Spot", href: "/spot" },
   ];
+  
+  // Only add Creator tab if user is a Whop admin/creator
+  if (isCreator) {
+    navigation.push({ name: "Creator", href: "/creator" });
+  }
   
   // Only add Admin tab if the connected wallet is the admin wallet
   if (isAdmin) {

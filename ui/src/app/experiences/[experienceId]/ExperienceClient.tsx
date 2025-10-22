@@ -25,9 +25,9 @@ export default function ExperienceClient({
 
   useEffect(() => {
     if (isWhopUserSet && accessLevel === "admin") {
-      router.replace("/perps");
+      router.replace("/creator");
     }
   }, [accessLevel, isWhopUserSet, router]);
 
-  return <div>Callback Screen</div>;
+  return <div></div>;
 }

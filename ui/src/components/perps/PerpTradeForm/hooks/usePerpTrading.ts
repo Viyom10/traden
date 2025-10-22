@@ -36,9 +36,13 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
   const drift = useDriftStore((s) => s.drift);
   const isSwiftClientHealthy = useDriftStore((s) => s.isSwiftClientHealthy);
   const activeSubAccountId = useUserAccountDataStore((s) => s.activeSubAccountId);
+  const currentAccount = useUserAccountDataStore((s) => s.getCurrentAccount());
   const revenueShareEscrow = useUserAccountDataStore((s) => s.revenueShareEscrow);
   const whopUser = useUserStore((s) => s.whopUser);
   const experienceId = useUserStore((s) => s.experienceId);
+
+  // Maximum leverage constant - 2.5x
+  const MAX_LEVERAGE = 2.5;
 
   const [orderType, setOrderType] = useState<PerpOrderType>("market");
   const [direction, setDirection] = useState<PositionDirection>(PositionDirection.LONG);
@@ -51,7 +55,7 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
   const [stopLossPrice, setStopLossPrice] = useState("");
   const [reduceOnly, setReduceOnlyState] = useState(false);
   const [postOnly, setPostOnlyState] = useState(false);
-  const [useSwift, setUseSwift] = useState(true);
+  const [useSwift, setUseSwift] = useState(false);
 
   const setReduceOnly = (value: boolean) => {
     setReduceOnlyState(value);
@@ -145,6 +149,42 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
         isValid: false,
         errorMessage: "Please enter a size",
       };
+    }
+
+    // Leverage validation
+    if (currentAccount?.marginInfo?.netUsdValue) {
+      const accountBalance = currentAccount.marginInfo.netUsdValue.toNum();
+      const maxTradeSize = accountBalance * MAX_LEVERAGE;
+      
+      try {
+        const sizePrecisionExp = sizeType === "base" ? BASE_PRECISION_EXP : QUOTE_PRECISION_EXP;
+        const sizeBigNum = BigNum.fromPrint(size, sizePrecisionExp);
+        let tradeSizeInUSDC = 0;
+        
+        if (sizeType === "base") {
+          // Convert base to USDC using current price
+          if (currentPrice.eq(ZERO)) {
+            return {
+              isValid: false,
+              errorMessage: "Price data not available. Please try again in a moment.",
+            };
+          }
+          const currentPriceBigNum = BigNum.from(currentPrice, PRICE_PRECISION_EXP);
+          tradeSizeInUSDC = sizeBigNum.toNum() * currentPriceBigNum.toNum();
+        } else {
+          // Already in USDC
+          tradeSizeInUSDC = sizeBigNum.toNum();
+        }
+        
+        if (tradeSizeInUSDC > maxTradeSize) {
+          return {
+            isValid: false,
+            errorMessage: `Order size exceeds maximum allowed. Your collateral is $${accountBalance.toFixed(2)}, maximum trade size is $${maxTradeSize.toFixed(2)} (${MAX_LEVERAGE}x leverage).`,
+          };
+        }
+      } catch (_error) {
+        // If size parsing fails, let it be caught by other validations
+      }
     }
 
     if (selectedMarketConfig && !minOrderSize.eq(ZERO)) {
@@ -479,6 +519,10 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
     setStopLossPrice("");
   };
 
+  // Calculate max trade size
+  const accountBalance = currentAccount?.marginInfo?.netUsdValue?.toNum() || 0;
+  const maxTradeSize = accountBalance * MAX_LEVERAGE;
+
   return {
     // State
     orderType,
@@ -496,6 +540,9 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
     isLoading,
     selectedMarketConfig,
     minOrderSize,
+    accountBalance,
+    maxTradeSize,
+    maxLeverage: MAX_LEVERAGE,
 
     // Actions
     setOrderType,

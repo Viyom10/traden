@@ -1,5 +1,5 @@
-import { AuthorityDrift } from "@drift-labs/common";
-import { BigNum, TxSigAndSlot } from "@drift-labs/sdk";
+import { AuthorityDrift, MarketId } from "@drift-labs/common";
+import { BigNum, TxSigAndSlot, PRICE_PRECISION_EXP, BN } from "@drift-labs/sdk";
 import {
   Transaction,
   Signer,
@@ -9,16 +9,61 @@ import {
   TransactionMessage,
 } from "@solana/web3.js";
 import { addTradingFeeToTransaction, getBuilderAuthorityPublicKey } from "./tradingFee";
+import { useUserStore } from "@/stores/UserStore";
 
 interface PendingPerpOrderFee {
   orderSize: BigNum;
   assetType: "base" | "quote";
+  marketIndex: number;
 }
 
 export interface TradingFeeInterceptorConfig {
   enableForPerpOrders?: boolean;
   enableForSwaps?: boolean;
   enableForOtherOperations?: boolean;
+}
+
+/**
+ * Helper function to record fee to database
+ */
+async function recordFeeToDatabase(
+  orderSize: BigNum,
+  assetType: "base" | "quote",
+  feeInSol: number,
+  feeInLamports: BN,
+  userId?: string,
+  experienceId?: string,
+) {
+  if (!userId || !experienceId) {
+    console.log("Skipping fee recording - userId or experienceId not available");
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/fee", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        userId,
+        experienceId,
+        feeAmount: feeInSol.toString(),
+        feeInLamports: feeInLamports.toString(),
+        orderSize: orderSize.prettyPrint(),
+        assetType,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Failed to record fee:", errorData);
+    } else {
+      console.log("✅ Fee recorded to database successfully");
+    }
+  } catch (error) {
+    console.error("Error recording fee to database:", error);
+  }
 }
 
 /**
@@ -87,6 +132,7 @@ export function installTradingFeeInterceptor(
       pendingPerpOrderFee = {
         orderSize: params.size,
         assetType: params.assetType,
+        marketIndex: params.marketIndex,
       };
       
       console.log("📝 Stored pending perp order fee:", pendingPerpOrderFee);
@@ -130,18 +176,46 @@ export function installTradingFeeInterceptor(
         
         const orderSizeRaw = pendingPerpOrderFee.orderSize.val;
         
-        // Calculate 0.05% fee
+        // Calculate 0.05% fee on the order size
         // For base assets: orderSize is in base precision (1e9 for SOL)
         // For quote assets: orderSize is in quote precision (1e6 for USDC)
         // Fee = orderSize * 0.05 / 100 = orderSize * 5 / 10000
         const feeAmount = orderSizeRaw.muln(5).divn(10000);
         
-        // For base assets, feeAmount is already in base precision (lamports for SOL)
-        // For quote assets, we need to convert USDC to SOL
-        // For now, using a simple conversion: 1 USDC ≈ 0.01 SOL (placeholder)
-        const feeInLamports = pendingPerpOrderFee.assetType === 'base' 
-          ? feeAmount  // Already in lamports
-          : feeAmount.muln(10000); // Convert USDC (1e6) to rough SOL equivalent
+        let feeInLamports: typeof orderSizeRaw;
+        
+        if (pendingPerpOrderFee.assetType === 'base') {
+          // For base assets (SOL), feeAmount is already in base precision (lamports)
+          feeInLamports = feeAmount;
+        } else {
+          // For quote assets (USDC), we need to convert the USDC fee to SOL using oracle price
+          // Get the SOL oracle price (market index 1 for SOL spot market)
+          const solMarketId = MarketId.createSpotMarket(1); // SOL is typically market index 1
+          const solOraclePrice = drift.oraclePriceCache[solMarketId.key]?.price;
+          
+          if (!solOraclePrice || solOraclePrice.isZero()) {
+            console.warn("⚠️ SOL oracle price not available, using fallback conversion");
+            // Fallback: 1 USDC ≈ 0.01 SOL (if oracle price unavailable)
+            feeInLamports = feeAmount.muln(10000);
+          } else {
+            // Convert USDC fee to SOL fee using oracle price
+            // feeAmount is in USDC (1e6 precision)
+            // solOraclePrice is in PRICE_PRECISION (1e6)
+            // We want result in lamports (1e9)
+            
+            // Formula: (feeInUSDC * 1e9) / oraclePrice
+            // This gives us SOL amount in lamports
+            const LAMPORTS_PER_SOL = new BN(1_000_000_000);
+            feeInLamports = feeAmount.mul(LAMPORTS_PER_SOL).div(solOraclePrice);
+            
+            console.log("Oracle price conversion:", {
+              feeInUSDC: feeAmount.toString(),
+              solOraclePrice: solOraclePrice.toString(),
+              solOraclePriceUSD: BigNum.from(solOraclePrice, PRICE_PRECISION_EXP).toNum(),
+              feeInLamports: feeInLamports.toString(),
+            });
+          }
+        }
         
         const feeInSol = feeInLamports.toNumber() / 1_000_000_000;
         
@@ -149,6 +223,7 @@ export function installTradingFeeInterceptor(
           orderSize: pendingPerpOrderFee.orderSize.prettyPrint(),
           orderSizeRaw: orderSizeRaw.toString(),
           assetType: pendingPerpOrderFee.assetType,
+          marketIndex: pendingPerpOrderFee.marketIndex,
           feeAmount: feeAmount.toString(),
           feeInLamports: feeInLamports.toString(),
           feeInSOL: `${feeInSol} SOL`,
@@ -240,6 +315,17 @@ export function installTradingFeeInterceptor(
           console.log(`💰 Fee Amount Charged: ${feeInSol} SOL (${feeInLamports.toString()} lamports)`);
           console.log(`🎯 Fee sent to: ${recipient.toBase58()}`);
           
+          // Record fee to database (non-blocking)
+          const { userId, experienceId } = useUserStore.getState();
+          recordFeeToDatabase(
+            pendingPerpOrderFee.orderSize,
+            pendingPerpOrderFee.assetType,
+            feeInSol,
+            feeInLamports,
+            userId || undefined,
+            experienceId || undefined,
+          ).catch(err => console.error("Fee recording error:", err));
+          
           return result;
         }
         
@@ -267,6 +353,25 @@ export function installTradingFeeInterceptor(
           
           console.log("✅ Transaction with trading fee sent successfully!");
           console.log(`📝 Transaction Signature: ${result.txSig}`);
+          
+          // Calculate fee for recording (same logic as in createTradingFeeInstruction)
+          const orderSizeRaw = pendingPerpOrderFee.orderSize.val;
+          const feeAmount = orderSizeRaw.muln(5).divn(10000); // 5 bps = 0.05%
+          const feeInLamports = pendingPerpOrderFee.assetType === 'base' 
+            ? feeAmount
+            : feeAmount.muln(10000);
+          const feeInSol = feeInLamports.toNumber() / 1_000_000_000;
+          
+          // Record fee to database (non-blocking)
+          const { userId, experienceId } = useUserStore.getState();
+          recordFeeToDatabase(
+            pendingPerpOrderFee.orderSize,
+            pendingPerpOrderFee.assetType,
+            feeInSol,
+            feeInLamports,
+            userId || undefined,
+            experienceId || undefined,
+          ).catch(err => console.error("Fee recording error:", err));
           console.log(`💰 Fee Amount Charged: ${feeInSol} SOL (${feeInLamports.toString()} lamports)`);
           console.log(`🎯 Fee sent to: ${recipient.toBase58()}`);
           

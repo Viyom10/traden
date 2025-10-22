@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "../../components/ui/card";
-import { TrendingUp, AlertCircle } from "lucide-react";
+import { TrendingUp, AlertCircle, Info } from "lucide-react";
 import { useDriftStore } from "@/stores/DriftStore";
 import { useMarkPriceStore } from "@/stores/MarkPriceStore";
 import { useOraclePriceStore } from "@/stores/OraclePriceStore";
@@ -22,6 +22,15 @@ import { DEFAULT_PERP_MARKET_INDEX } from "../../constants/defaultMarkets";
 import { MarketId, TRADING_UTILS } from "@drift-labs/common";
 import { BigNum, PRICE_PRECISION_EXP, ZERO } from "@drift-labs/sdk";
 import { useOrderbookWebSocket } from "../../hooks/perps/useOrderbookWebSocket";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "../../components/ui/dialog";
+import { Button } from "../../components/ui/button";
 
 export default function PerpsPage() {
   const { connected } = useWallet();
@@ -31,6 +40,7 @@ export default function PerpsPage() {
     DEFAULT_PERP_MARKET_INDEX,
   );
   const [rightPanelView, setRightPanelView] = useState<"order" | "orderbook">("order");
+  const [showLeverageDialog, setShowLeverageDialog] = useState<boolean>(false);
 
   const selectedMarketId = useMemo(
     () => MarketId.createPerpMarket(selectedMarketIndex),
@@ -46,6 +56,11 @@ export default function PerpsPage() {
   const oraclePriceData = useOraclePriceStore(
     (s) => s.lookup[selectedMarketId.key],
   );
+
+  // Show leverage limitation dialog on page load
+  useEffect(() => {
+    setShowLeverageDialog(true);
+  }, []);
 
   const selectedMarketConfig = perpMarketConfigs.find(
     (config) => config.marketIndex === selectedMarketIndex,
@@ -215,6 +230,30 @@ export default function PerpsPage() {
           <OpenOrdersTable />
         </div>
       </div>
+
+      {/* Leverage Limitation Dialog */}
+      <Dialog open={showLeverageDialog} onOpenChange={setShowLeverageDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Info className="h-5 w-5 text-blue-400" />
+              Important Notice
+            </DialogTitle>
+          </DialogHeader>
+          <DialogDescription className="text-gray-300 leading-relaxed">
+            Right now, we only support leverage up to <span className="font-semibold text-white">2.5x</span>. 
+            We are continuously working to bring it to market standards, and it will be available 
+            in the next <span className="font-semibold text-white">15 days</span>. 
+            <br /><br />
+            Thanks for your patience.
+          </DialogDescription>
+          <DialogFooter>
+            <Button onClick={() => setShowLeverageDialog(false)}>
+              Got it
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

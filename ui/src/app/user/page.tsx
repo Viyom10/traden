@@ -187,7 +187,7 @@ export default function UserPage() {
             <ConnectedWalletInfo publicKey={publicKey} />
 
             {/* RevenueShareEscrow Setup for Existing Wallets */}
-            {userAccounts.length > 0 && <SetupBuilderCodesCard />}
+            {userAccounts.length > 0 && process.env.NEXT_PUBLIC_ENVIRONMENT === "development" && <SetupBuilderCodesCard />}
 
             {/* Create and Deposit Form */}
             <CreateUserForm
