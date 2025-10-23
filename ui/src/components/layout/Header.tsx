@@ -47,6 +47,7 @@ const Header: React.FC = () => {
   // Build navigation array - start with default navigation
   const navigation = [
     { name: "Perps", href: "/perps" },
+    { name: "Signals", href: "/signals" },
     { name: "User", href: "/user" },
     { name: "Spot", href: "/spot" },
   ];
