@@ -27,6 +27,13 @@ export const useSignalExecution = () => {
 
   const [isExecuting, setIsExecuting] = useState(false);
 
+  // Type guard for BigNum-like objects that expose a toNum() method
+  const isBigNumLike = (v: unknown): v is { toNum: () => number } => {
+    if (typeof v !== "object" || v === null) return false;
+    const obj = v as { toNum?: unknown };
+    return typeof obj.toNum === "function";
+  };
+
   const recordTrade = async (signal: TradeSignalRecord, tradeSizeInQuote: number, txSignature?: string) => {
     if (!whopUser || !experienceId) {
       console.warn("Missing user info for trade recording");
@@ -98,9 +105,15 @@ export const useSignalExecution = () => {
       }
 
       // Calculate the trade size based on customer's collateral and leverage multiplier
-      // Use netUsdValue as the collateral amount
+      // Use netUsdValue as the collateral amount. The SDK may return a BigNum or a plain number,
+      // so handle both shapes safely.
       const collateralValue = currentUserAccount.getNetUsdValue();
-      const tradeSizeInQuote = collateralValue.toNum() * signal.leverageMultiplier;
+      const _collateralVal = collateralValue as unknown;
+      const collateralNumber = isBigNumLike(_collateralVal)
+        ? _collateralVal.toNum()
+        : (_collateralVal as number);
+
+      const tradeSizeInQuote = collateralNumber * signal.leverageMultiplier;
       
       // Convert to BigNum in quote precision (USDC)
       const sizeBigNum = BigNum.fromPrint(tradeSizeInQuote.toString(), QUOTE_PRECISION_EXP);
@@ -112,7 +125,8 @@ export const useSignalExecution = () => {
         throw new Error("Market account not found");
       }
       const currentOraclePrice = drift.driftClient.getOracleDataForPerpMarket(signal.marketIndex).price;
-      const entryPrice = currentOraclePrice.toNum();
+      const _oraclePrice = currentOraclePrice as unknown;
+      const entryPrice = isBigNumLike(_oraclePrice) ? _oraclePrice.toNum() : (_oraclePrice as number);
 
       // Calculate TP/SL prices from percentages if provided
       let takeProfitPrice: BigNum | undefined;
