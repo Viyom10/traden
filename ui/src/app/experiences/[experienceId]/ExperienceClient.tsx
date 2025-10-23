@@ -24,8 +24,12 @@ export default function ExperienceClient({
   });
 
   useEffect(() => {
-    if (isWhopUserSet && accessLevel === "admin") {
-      router.replace("/creator");
+    if (isWhopUserSet) {
+      if (accessLevel === "admin") {
+        router.replace("/creator");
+      } else if (accessLevel === "customer") {
+        router.replace("/perps");
+      }
     }
   }, [accessLevel, isWhopUserSet, router]);
 
