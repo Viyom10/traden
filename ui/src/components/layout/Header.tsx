@@ -47,8 +47,9 @@ const Header: React.FC = () => {
   // Build navigation array - start with default navigation
   const navigation = [
     { name: "Perps", href: "/perps" },
-    { name: "User", href: "/user" },
     { name: "Spot", href: "/spot" },
+    { name: "Signals", href: "/signals" },
+    { name: "User", href: "/user" },
   ];
   
   // Only add Creator tab if user is a Whop admin/creator
