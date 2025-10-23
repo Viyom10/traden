@@ -2,11 +2,12 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import WalletButton from "../wallet/WalletButton";
 import { UserAccountSelector } from "../user/UserAccountSelector";
-import { Activity, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { clsx } from "clsx";
 import {
   Select,
@@ -17,6 +18,7 @@ import {
 } from "../ui/select";
 import { DriftEnvironment, useDriftStore } from "@/stores/DriftStore";
 import { useUserStore } from "@/stores/UserStore";
+import logoImage from "@/public/images/logo.png";
 
 const ADMIN_WALLET_ADDRESS = "6iUM9jw4qFYWdqGX5f9Bg6H674sGeFgUbAXcTLo7FXmz";
 
@@ -75,8 +77,14 @@ const Header: React.FC = () => {
             href="/"
             className="flex items-center gap-2 hover:opacity-80 transition-opacity"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-              <Activity className="h-5 w-5 text-white" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg">
+              <Image
+                src={logoImage}
+                alt="Traden Logo"
+                width={32}
+                height={32}
+                className="rounded-lg"
+              />
             </div>
             <span className="text-xl font-bold text-white">Traden</span>
           </Link>
