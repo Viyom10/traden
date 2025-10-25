@@ -30,6 +30,7 @@ export function PerpTradeForm({
     direction,
     sizeType,
     size,
+    leverage,
     limitPrice,
     triggerPrice,
     oraclePriceOffset,
@@ -40,10 +41,13 @@ export function PerpTradeForm({
     isLoading,
     selectedMarketConfig,
     minOrderSize,
+    accountBalance,
+    maxLeverage,
     setOrderType,
     setDirection,
     setSizeType,
     setSize,
+    setLeverage,
     setLimitPrice,
     setTriggerPrice,
     setOraclePriceOffset,
@@ -181,6 +185,41 @@ export function PerpTradeForm({
               required
             />
           </div>
+
+          {/* Leverage Slider */}
+          {accountBalance > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-gray-200">
+                  Leverage: {leverage.toFixed(1)}x
+                </label>
+                <span className="text-xs text-gray-400">
+                  Collateral: ${accountBalance.toFixed(2)}
+                </span>
+              </div>
+              <div className="space-y-1">
+                <input
+                  type="range"
+                  min="0"
+                  max={maxLeverage}
+                  step="0.1"
+                  value={leverage}
+                  onChange={(e) => setLeverage(parseFloat(e.target.value))}
+                  className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                />
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>0x</span>
+                  <span>{(maxLeverage / 2).toFixed(0)}x</span>
+                  <span>{maxLeverage}x</span>
+                </div>
+              </div>
+              {leverage > 0 && (
+                <div className="text-xs text-gray-400">
+                  Position size at {leverage.toFixed(1)}x: ${(accountBalance * leverage).toFixed(2)} USDC
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Minimum Order Size Info */}
           {selectedMarketConfig && !minOrderSize.eq(ZERO) && (

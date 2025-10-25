@@ -26,6 +26,7 @@ export function SignalTradeForm({
     orderType,
     direction,
     leverageMultiplier,
+    leverage,
     limitPricePercentage,
     triggerPricePercentage,
     oraclePriceOffsetPercentage,
@@ -35,9 +36,11 @@ export function SignalTradeForm({
     expiryDuration,
     expiryUnit,
     isLoading,
+    maxLeverage,
     setOrderType,
     setDirection,
     setLeverageMultiplier,
+    setLeverage,
     setLimitPricePercentage,
     setTriggerPricePercentage,
     setOraclePriceOffsetPercentage,
@@ -136,15 +139,41 @@ export function SignalTradeForm({
           <div className="space-y-2">
             <FormInput
               type="number"
-              label="Leverage Multiplier (0.1x - 2.5x)"
+              label={`Leverage Multiplier (0.1x - ${maxLeverage}x)`}
               placeholder="1.0"
               value={leverageMultiplier}
               onChange={(e) => setLeverageMultiplier(e.target.value)}
               step="0.1"
               min="0.1"
-              max="2.5"
+              max={maxLeverage}
               required
             />
+            
+            {/* Leverage Slider */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-gray-200">
+                  Leverage: {leverage.toFixed(1)}x
+                </label>
+              </div>
+              <div className="space-y-1">
+                <input
+                  type="range"
+                  min="0"
+                  max={maxLeverage}
+                  step="0.1"
+                  value={leverage}
+                  onChange={(e) => setLeverage(parseFloat(e.target.value))}
+                  className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                />
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>0x</span>
+                  <span>{(maxLeverage / 2).toFixed(0)}x</span>
+                  <span>{maxLeverage}x</span>
+                </div>
+              </div>
+            </div>
+            
             <p className="text-xs text-gray-400">
               This multiplier will be applied to each customer&apos;s collateral to calculate their position size
             </p>

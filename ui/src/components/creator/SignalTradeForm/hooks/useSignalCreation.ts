@@ -26,6 +26,7 @@ export const useSignalCreation = ({ perpMarketConfigs, selectedMarketIndex }: Us
   const [orderType, setOrderType] = useState<SignalOrderType>("market");
   const [direction, setDirection] = useState<PositionDirection>(PositionDirection.LONG);
   const [leverageMultiplier, setLeverageMultiplier] = useState("");
+  const [leverage, setLeverageSlider] = useState<number>(1);
   const [limitPricePercentage, setLimitPricePercentage] = useState("");
   const [triggerPricePercentage, setTriggerPricePercentage] = useState("");
   const [oraclePriceOffsetPercentage, setOraclePriceOffsetPercentage] = useState("");
@@ -35,6 +36,25 @@ export const useSignalCreation = ({ perpMarketConfigs, selectedMarketIndex }: Us
   const [expiryDuration, setExpiryDuration] = useState("");
   const [expiryUnit, setExpiryUnit] = useState<"minutes" | "hours">("minutes");
   const [isLoading, setIsLoading] = useState(false);
+
+  // Maximum leverage constant
+  const MAX_LEVERAGE = 20;
+
+  // Handle leverage slider changes - update leverageMultiplier
+  const handleLeverageChange = (newLeverage: number) => {
+    setLeverageSlider(newLeverage);
+    setLeverageMultiplier(newLeverage.toFixed(1));
+  };
+
+  // Handle leverageMultiplier text input changes - update slider
+  const handleLeverageMultiplierChange = (value: string) => {
+    setLeverageMultiplier(value);
+    if (value && !isNaN(parseFloat(value))) {
+      const leverageNum = parseFloat(value);
+      // Cap leverage at MAX_LEVERAGE
+      setLeverageSlider(Math.min(leverageNum, MAX_LEVERAGE));
+    }
+  };
 
   const selectedMarketConfig = perpMarketConfigs.find(
     (config) => config.marketIndex === selectedMarketIndex,
@@ -70,10 +90,10 @@ export const useSignalCreation = ({ perpMarketConfigs, selectedMarketIndex }: Us
     }
 
     const leverage = parseFloat(leverageMultiplier);
-    if (isNaN(leverage) || leverage < 0.1 || leverage > 2.5) {
+    if (isNaN(leverage) || leverage < 0.1 || leverage > 20) {
       return {
         isValid: false,
-        errorMessage: "Leverage multiplier must be between 0.1 and 2.5",
+        errorMessage: "Leverage multiplier must be between 0.1 and 20",
       };
     }
 
@@ -209,6 +229,7 @@ export const useSignalCreation = ({ perpMarketConfigs, selectedMarketIndex }: Us
 
   const resetForm = () => {
     setLeverageMultiplier("");
+    setLeverageSlider(1);
     setLimitPricePercentage("");
     setTriggerPricePercentage("");
     setOraclePriceOffsetPercentage("");
@@ -222,6 +243,7 @@ export const useSignalCreation = ({ perpMarketConfigs, selectedMarketIndex }: Us
     orderType,
     direction,
     leverageMultiplier,
+    leverage,
     limitPricePercentage,
     triggerPricePercentage,
     oraclePriceOffsetPercentage,
@@ -233,11 +255,13 @@ export const useSignalCreation = ({ perpMarketConfigs, selectedMarketIndex }: Us
     isLoading,
     selectedMarketConfig,
     currentPrice,
+    maxLeverage: MAX_LEVERAGE,
 
     // Actions
     setOrderType,
     setDirection,
-    setLeverageMultiplier,
+    setLeverageMultiplier: handleLeverageMultiplierChange,
+    setLeverage: handleLeverageChange,
     setLimitPricePercentage,
     setTriggerPricePercentage,
     setOraclePriceOffsetPercentage,

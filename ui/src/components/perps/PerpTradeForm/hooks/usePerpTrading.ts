@@ -47,6 +47,7 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
   const [direction, setDirection] = useState<PositionDirection>(PositionDirection.LONG);
   const [sizeType, setSizeType] = useState<AssetSizeType>("base");
   const [size, setSize] = useState("");
+  const [leverage, setLeverage] = useState<number>(1);
   const [limitPrice, setLimitPrice] = useState("");
   const [triggerPrice, setTriggerPrice] = useState("");
   const [oraclePriceOffset, setOraclePriceOffset] = useState("");
@@ -55,6 +56,34 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
   const [reduceOnly, setReduceOnlyState] = useState(false);
   const [postOnly, setPostOnlyState] = useState(false);
   const [useSwift, setUseSwift] = useState(false);
+
+  // Maximum leverage constant
+  const MAX_LEVERAGE = 20;
+
+  // Calculate account balance
+  const accountBalance = currentAccount?.marginInfo?.netUsdValue?.toNum() || 0;
+
+  // Handle leverage changes - update size based on leverage
+  const handleLeverageChange = (newLeverage: number) => {
+    setLeverage(newLeverage);
+    if (accountBalance > 0) {
+      const newSize = accountBalance * newLeverage;
+      setSize(newSize.toFixed(2));
+      // When leverage is used, always use quote (USDC) size type
+      setSizeType("quote");
+    }
+  };
+
+  // Handle size changes - update leverage based on size
+  const handleSizeChange = (newSize: string) => {
+    setSize(newSize);
+    if (accountBalance > 0 && newSize && !isNaN(parseFloat(newSize))) {
+      const sizeNum = parseFloat(newSize);
+      const calculatedLeverage = sizeNum / accountBalance;
+      // Cap leverage at MAX_LEVERAGE
+      setLeverage(Math.min(calculatedLeverage, MAX_LEVERAGE));
+    }
+  };
 
   const setReduceOnly = (value: boolean) => {
     setReduceOnlyState(value);
@@ -486,6 +515,7 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
 
   const resetForm = () => {
     setSize("");
+    setLeverage(1);
     setLimitPrice("");
     setTriggerPrice("");
     setOraclePriceOffset("");
@@ -493,15 +523,13 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
     setStopLossPrice("");
   };
 
-  // Calculate account balance
-  const accountBalance = currentAccount?.marginInfo?.netUsdValue?.toNum() || 0;
-
   return {
     // State
     orderType,
     direction,
     sizeType,
     size,
+    leverage,
     limitPrice,
     triggerPrice,
     oraclePriceOffset,
@@ -514,12 +542,14 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
     selectedMarketConfig,
     minOrderSize,
     accountBalance,
+    maxLeverage: MAX_LEVERAGE,
 
     // Actions
     setOrderType,
     setDirection,
     setSizeType,
-    setSize,
+    setSize: handleSizeChange,
+    setLeverage: handleLeverageChange,
     setLimitPrice,
     setTriggerPrice,
     setOraclePriceOffset,
