@@ -241,7 +241,7 @@ export default function PerpsPage() {
             </DialogTitle>
           </DialogHeader>
           <DialogDescription className="text-gray-300 leading-relaxed">
-            Right now, we only support leverage up to <span className="font-semibold text-white">2.5x</span>. 
+            Right now, we only support leverage up to <span className="font-semibold text-white">20x</span>. 
             We are continuously working to bring it to market standards, and it will be available 
             in the next <span className="font-semibold text-white">15 days</span>. 
             <br /><br />
