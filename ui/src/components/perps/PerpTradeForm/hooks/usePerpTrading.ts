@@ -14,15 +14,16 @@ import {
 } from "@drift-labs/sdk";
 import { useDriftStore } from "@/stores/DriftStore";
 import { useUserAccountDataStore } from "@/stores/UserAccountDataStore";
-import { ENUM_UTILS, PerpOrderParams, GeoBlockError } from "@drift-labs/common";
+import { ENUM_UTILS, PerpOrderParams, GeoBlockError, EnvironmentConstants } from "@drift-labs/common";
 import { toast } from "sonner";
-import { TransactionSignature } from "@solana/web3.js";
+import { TransactionSignature, PublicKey } from "@solana/web3.js";
 import { BUILDER_AUTHORITY } from "@/constants/builderCode";
 import { useMarkPriceStore } from "@/stores/MarkPriceStore";
 import { useOraclePriceStore } from "@/stores/OraclePriceStore";
 import { MarketId } from "@drift-labs/common";
 import { useGetPerpMarketMinOrderSize } from "@/hooks/markets/useGetPerpMarketMinOrderSize";
 import { useUserStore } from "@/stores/UserStore";
+import { createOpenPerpMarketOrder } from "@drift-labs/common";
 
 export type PerpOrderType = "market" | "limit" | "takeProfit" | "stopLoss" | "oracleLimit";
 export type AssetSizeType = "base" | "quote";
@@ -35,14 +36,12 @@ export interface UsePerpTradingProps {
 export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePerpTradingProps) => {
   const drift = useDriftStore((s) => s.drift);
   const isSwiftClientHealthy = useDriftStore((s) => s.isSwiftClientHealthy);
+  const environment = useDriftStore((s) => s.environment);
   const activeSubAccountId = useUserAccountDataStore((s) => s.activeSubAccountId);
   const currentAccount = useUserAccountDataStore((s) => s.getCurrentAccount());
   const revenueShareEscrow = useUserAccountDataStore((s) => s.revenueShareEscrow);
   const whopUser = useUserStore((s) => s.whopUser);
   const experienceId = useUserStore((s) => s.experienceId);
-
-  // Maximum leverage constant - 2.5x
-  const MAX_LEVERAGE = 2.5;
 
   const [orderType, setOrderType] = useState<PerpOrderType>("market");
   const [direction, setDirection] = useState<PositionDirection>(PositionDirection.LONG);
@@ -151,42 +150,6 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
       };
     }
 
-    // Leverage validation
-    if (currentAccount?.marginInfo?.netUsdValue) {
-      const accountBalance = currentAccount.marginInfo.netUsdValue.toNum();
-      const maxTradeSize = accountBalance * MAX_LEVERAGE;
-      
-      try {
-        const sizePrecisionExp = sizeType === "base" ? BASE_PRECISION_EXP : QUOTE_PRECISION_EXP;
-        const sizeBigNum = BigNum.fromPrint(size, sizePrecisionExp);
-        let tradeSizeInUSDC = 0;
-        
-        if (sizeType === "base") {
-          // Convert base to USDC using current price
-          if (currentPrice.eq(ZERO)) {
-            return {
-              isValid: false,
-              errorMessage: "Price data not available. Please try again in a moment.",
-            };
-          }
-          const currentPriceBigNum = BigNum.from(currentPrice, PRICE_PRECISION_EXP);
-          tradeSizeInUSDC = sizeBigNum.toNum() * currentPriceBigNum.toNum();
-        } else {
-          // Already in USDC
-          tradeSizeInUSDC = sizeBigNum.toNum();
-        }
-        
-        if (tradeSizeInUSDC > maxTradeSize) {
-          return {
-            isValid: false,
-            errorMessage: `Order size exceeds maximum allowed. Your collateral is $${accountBalance.toFixed(2)}, maximum trade size is $${maxTradeSize.toFixed(2)} (${MAX_LEVERAGE}x leverage).`,
-          };
-        }
-      } catch (_error) {
-        // If size parsing fails, let it be caught by other validations
-      }
-    }
-
     if (selectedMarketConfig && !minOrderSize.eq(ZERO)) {
       try {
         const sizePrecisionExp = sizeType === "base" ? BASE_PRECISION_EXP : QUOTE_PRECISION_EXP;
@@ -224,19 +187,19 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
           const baseEquivalent = BigNum.from(baseEquivalentRaw, BASE_PRECISION_EXP);
           
           // Debug logging
-          console.log("Quote validation debug (improved):", {
-            size,
-            sizeUSDC: sizeBigNum.prettyPrint(),
-            sizeBigNumVal: sizeBigNum.val.toString(),
-            currentPrice: currentPriceBigNum.prettyPrint(),
-            currentPriceVal: currentPriceBigNum.val.toString(),
-            baseEquivalent: baseEquivalent.prettyPrint(),
-            baseEquivalentVal: baseEquivalent.val.toString(),
-            baseEquivalentRaw: baseEquivalentRaw.toString(),
-            minOrderSize: BigNum.from(minOrderSize, BASE_PRECISION_EXP).prettyPrint(),
-            minOrderSizeVal: minOrderSize.toString(),
-            isValid: !baseEquivalent.val.lt(minOrderSize)
-          });
+          // console.log("Quote validation debug (improved):", {
+          //   size,
+          //   sizeUSDC: sizeBigNum.prettyPrint(),
+          //   sizeBigNumVal: sizeBigNum.val.toString(),
+          //   currentPrice: currentPriceBigNum.prettyPrint(),
+          //   currentPriceVal: currentPriceBigNum.val.toString(),
+          //   baseEquivalent: baseEquivalent.prettyPrint(),
+          //   baseEquivalentVal: baseEquivalent.val.toString(),
+          //   baseEquivalentRaw: baseEquivalentRaw.toString(),
+          //   minOrderSize: BigNum.from(minOrderSize, BASE_PRECISION_EXP).prettyPrint(),
+          //   minOrderSizeVal: minOrderSize.toString(),
+          //   isValid: !baseEquivalent.val.lt(minOrderSize)
+          // });
           
           if (baseEquivalent.val.lt(minOrderSize)) {
             const minOrderSizeFormatted = BigNum.from(minOrderSize, BASE_PRECISION_EXP).prettyPrint();
@@ -292,7 +255,7 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
   };
 
   const handleSubmit = async () => {
-    if (!drift || activeSubAccountId === undefined) {
+    if (!drift || activeSubAccountId === undefined || !currentAccount) {
       toast.error("Drift Not Ready", {
         description: "Please ensure Drift is properly initialized and try again.",
         duration: 4000,
@@ -316,9 +279,6 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
       const sizePrecisionExp = sizeType === "base" ? BASE_PRECISION_EXP : QUOTE_PRECISION_EXP;
       const sizeBigNum = BigNum.fromPrint(size, sizePrecisionExp);
 
-      let isUsingSwift = false;
-      let orderConfig: PerpOrderParams["orderConfig"];
-
       // Get builder configuration from environment
       let builderParams = undefined;
 
@@ -335,147 +295,161 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
         }
       }
 
-      switch (orderType) {
-        case "market": {
-          isUsingSwift = isSwiftClientHealthy && useSwift;
-          let toastId = "";
-          orderConfig = {
-            orderType: "market",
-            disableSwift: !isUsingSwift,
-            bracketOrders: {
-              takeProfitPrice: takeProfitPrice
-                ? BigNum.fromPrint(takeProfitPrice, PRICE_PRECISION_EXP)
-                : undefined,
-              stopLossPrice: stopLossPrice
-                ? BigNum.fromPrint(stopLossPrice, PRICE_PRECISION_EXP)
-                : undefined,
-            },
-            swiftOptions: {
-              callbacks: {
-                onOrderParamsMessagePrepped: () => {
-                  toastId = toast.loading("Preparing Order") as string;
-                },
-                onSigningSuccess: () => {
-                  toast.success("Order Signed", {
-                    id: toastId,
-                  });
-                },
-                onSent: () => {
-                  toast.success("Order Sent", {
-                    id: toastId,
-                  });
-                },
-                onConfirmed: () => {
-                  toast.success("Order Confirmed", {
-                    id: toastId,
-                  });
-                },
-                onExpired: () => {
-                  toast.error("Order Expired", {
-                    id: toastId,
-                  });
-                },
-                onErrored: () => {
-                  toast.error("Order Errored", {
-                    id: toastId,
-                  });
-                },
-              },
-            },
-          };
-          break;
-        }
-        case "limit": {
-          const limitPriceBigNum = BigNum.fromPrint(limitPrice, QUOTE_PRECISION_EXP);
-          let toastId = "";
-          isUsingSwift = isSwiftClientHealthy && useSwift;
-          orderConfig = {
-            orderType: "limit",
-            limitPrice: limitPriceBigNum,
-            disableSwift: !isUsingSwift,
-            bracketOrders: {
-              takeProfitPrice: takeProfitPrice
-                ? BigNum.fromPrint(takeProfitPrice, PRICE_PRECISION_EXP)
-                : undefined,
-              stopLossPrice: stopLossPrice
-                ? BigNum.fromPrint(stopLossPrice, PRICE_PRECISION_EXP)
-                : undefined,
-            },
-            swiftOptions: {
-              callbacks: {
-                onOrderParamsMessagePrepped: () => {
-                  toastId = toast.loading("Preparing Order") as string;
-                },
-                onSigningSuccess: () => {
-                  toast.success("Order Signed", {
-                    id: toastId,
-                  });
-                },
-                onSent: () => {
-                  toast.success("Order Sent", {
-                    id: toastId,
-                  });
-                },
-                onConfirmed: () => {
-                  toast.success("Order Confirmed", {
-                    id: toastId,
-                  });
-                },
-                onExpired: () => {
-                  toast.error("Order Expired", {
-                    id: toastId,
-                  });
-                },
-                onErrored: () => {
-                  toast.error("Order Errored", {
-                    id: toastId,
-                  });
-                },
-              },
-            },
-          };
-          break;
-        }
-        case "takeProfit":
-        case "stopLoss":
-          const triggerPriceBigNum = BigNum.fromPrint(triggerPrice, QUOTE_PRECISION_EXP);
-          const limitPriceTakeProfitBigNum = limitPrice
-            ? BigNum.fromPrint(limitPrice, QUOTE_PRECISION_EXP)
-            : undefined;
-          orderConfig = {
-            orderType: orderType,
-            triggerPrice: triggerPriceBigNum,
-            limitPrice: limitPriceTakeProfitBigNum,
-          };
-          break;
-        case "oracleLimit":
-          const oraclePriceOffsetBigNum = BigNum.fromPrint(oraclePriceOffset, QUOTE_PRECISION_EXP);
-          orderConfig = {
-            orderType: "oracleLimit",
-            oraclePriceOffset: oraclePriceOffsetBigNum,
-          };
-          break;
-        default:
-          throw new Error(`Invalid order type: ${orderType}`);
-      }
+      // Map environment to dlob server key
+      const envKey = environment === "mainnet-beta" ? "mainnet" : "dev";
+      const dlobServerHttpUrl = (EnvironmentConstants.dlobServerHttpUrl as Record<string, string>)[envKey];
 
-      const result = await drift.openPerpOrder({
-        subAccountId: activeSubAccountId,
-        marketIndex: selectedMarketIndex,
-        orderConfig,
-        direction,
-        assetType: sizeType,
-        size: sizeBigNum,
-        reduceOnly,
-        postOnly: postOnly ? PostOnlyParams.MUST_POST_ONLY : PostOnlyParams.NONE,
-        builderParams: isUsingSwift ? builderParams : undefined,
-      });
+      const isUsingSwift = isSwiftClientHealthy && useSwift && orderType === "market";
+
+      let result: TransactionSignature | void = undefined;
+      let toastId = "";
+
+      if (orderType === "market") {
+        // Use createOpenPerpMarketOrder for market orders
+        const swiftCallbacks = {
+          onOrderParamsMessagePrepped: () => {
+            toastId = toast.loading("Preparing Order") as string;
+          },
+          onSigningSuccess: () => {
+            toast.success("Order Signed", {
+              id: toastId,
+            });
+          },
+          onSent: () => {
+            toast.success("Order Sent", {
+              id: toastId,
+            });
+          },
+          onConfirmed: () => {
+            toast.success("Order Confirmed", {
+              id: toastId,
+            });
+          },
+          onExpired: () => {
+            toast.error("Order Expired", {
+              id: toastId,
+            });
+          },
+          onErrored: () => {
+            toast.error("Order Errored", {
+              id: toastId,
+            });
+          },
+        };
+
+        const bracketOrders = (takeProfitPrice || stopLossPrice) ? {
+          takeProfit: takeProfitPrice ? {
+            triggerPrice: BigNum.fromPrint(takeProfitPrice, PRICE_PRECISION_EXP).val,
+          } : undefined,
+          stopLoss: stopLossPrice ? {
+            triggerPrice: BigNum.fromPrint(stopLossPrice, PRICE_PRECISION_EXP).val,
+          } : undefined,
+        } : undefined;
+
+        if (isUsingSwift && drift.driftClient.wallet) {
+          const wallet = drift.driftClient.wallet as unknown as { signMessage: (message: Uint8Array) => Promise<Uint8Array>; publicKey: PublicKey };
+          
+          await createOpenPerpMarketOrder({
+            driftClient: drift.driftClient,
+            user: currentAccount.userClient,
+            assetType: sizeType,
+            marketIndex: selectedMarketIndex,
+            direction,
+            amount: sizeBigNum.val,
+            dlobServerHttpUrl,
+            useSwift: true,
+            swiftOptions: {
+              wallet: {
+                signMessage: wallet.signMessage.bind(wallet),
+                takerAuthority: wallet.publicKey,
+              },
+              swiftServerUrl: drift.driftEndpoints.swiftServerUrl,
+              callbacks: swiftCallbacks,
+            },
+            bracketOrders,
+            builderParams,
+          });
+        } else {
+          const txn = await createOpenPerpMarketOrder({
+            driftClient: drift.driftClient,
+            user: currentAccount.userClient,
+            assetType: sizeType,
+            marketIndex: selectedMarketIndex,
+            direction,
+            amount: sizeBigNum.val,
+            dlobServerHttpUrl,
+            useSwift: false,
+            bracketOrders,
+          });
+          
+          // Send the transaction
+          const txResult = await drift.driftClient.sendTransaction(txn);
+          result = txResult.txSig;
+        }
+      } else {
+        // Use drift.openPerpOrder for non-market orders (limit, takeProfit, stopLoss, oracleLimit)
+        let orderConfig: PerpOrderParams["orderConfig"];
+        
+        switch (orderType) {
+          case "limit": {
+            const limitPriceBigNum = BigNum.fromPrint(limitPrice, QUOTE_PRECISION_EXP);
+            orderConfig = {
+              orderType: "limit",
+              limitPrice: limitPriceBigNum,
+              disableSwift: true,
+              bracketOrders: {
+                takeProfitPrice: takeProfitPrice
+                  ? BigNum.fromPrint(takeProfitPrice, PRICE_PRECISION_EXP)
+                  : undefined,
+                stopLossPrice: stopLossPrice
+                  ? BigNum.fromPrint(stopLossPrice, PRICE_PRECISION_EXP)
+                  : undefined,
+              },
+            };
+            break;
+          }
+          case "takeProfit":
+          case "stopLoss": {
+            const triggerPriceBigNum = BigNum.fromPrint(triggerPrice, QUOTE_PRECISION_EXP);
+            const limitPriceTakeProfitBigNum = limitPrice
+              ? BigNum.fromPrint(limitPrice, QUOTE_PRECISION_EXP)
+              : undefined;
+            orderConfig = {
+              orderType: orderType,
+              triggerPrice: triggerPriceBigNum,
+              limitPrice: limitPriceTakeProfitBigNum,
+            };
+            break;
+          }
+          case "oracleLimit": {
+            const oraclePriceOffsetBigNum = BigNum.fromPrint(oraclePriceOffset, QUOTE_PRECISION_EXP);
+            orderConfig = {
+              orderType: "oracleLimit",
+              oraclePriceOffset: oraclePriceOffsetBigNum,
+            };
+            break;
+          }
+          default:
+            throw new Error(`Invalid order type: ${orderType}`);
+        }
+
+        result = await drift.openPerpOrder({
+          subAccountId: activeSubAccountId,
+          marketIndex: selectedMarketIndex,
+          orderConfig,
+          direction,
+          assetType: sizeType,
+          size: sizeBigNum,
+          reduceOnly,
+          postOnly: postOnly ? PostOnlyParams.MUST_POST_ONLY : PostOnlyParams.NONE,
+        });
+      }
 
       const orderSide = ENUM_UTILS.match(direction, PositionDirection.LONG) ? "LONG" : "SHORT";
       const successMessage = `${orderType.toUpperCase()} ${orderSide} order placed successfully!`;
 
       let txSignature: string | undefined;
-      if (!isUsingSwift) {
+      if (!isUsingSwift && result) {
         txSignature = result as TransactionSignature;
 
         toast.success("Order Placed", {
@@ -519,9 +493,8 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
     setStopLossPrice("");
   };
 
-  // Calculate max trade size
+  // Calculate account balance
   const accountBalance = currentAccount?.marginInfo?.netUsdValue?.toNum() || 0;
-  const maxTradeSize = accountBalance * MAX_LEVERAGE;
 
   return {
     // State
@@ -541,8 +514,6 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
     selectedMarketConfig,
     minOrderSize,
     accountBalance,
-    maxTradeSize,
-    maxLeverage: MAX_LEVERAGE,
 
     // Actions
     setOrderType,

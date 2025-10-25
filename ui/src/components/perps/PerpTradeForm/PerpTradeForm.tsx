@@ -40,9 +40,6 @@ export function PerpTradeForm({
     isLoading,
     selectedMarketConfig,
     minOrderSize,
-    accountBalance,
-    maxTradeSize,
-    maxLeverage,
     setOrderType,
     setDirection,
     setSizeType,
@@ -202,26 +199,6 @@ export function PerpTradeForm({
               ) : (
                 <>Minimum order size: {BigNum.from(minOrderSize, BASE_PRECISION_EXP).prettyPrint()} {selectedMarketConfig.baseAssetSymbol} (price loading...)</>
               )}
-            </div>
-          )}
-
-          {/* Leverage and Max Trade Size Info */}
-          {accountBalance > 0 && (
-            <div className="rounded-lg p-3 bg-blue-600/10 border border-blue-600/20">
-              <div className="text-sm space-y-1">
-                <p className="text-blue-400 font-medium">
-                  Your Trading Capacity
-                </p>
-                <p className="text-gray-300">
-                  • Account Balance: ${accountBalance.toFixed(2)}
-                </p>
-                <p className="text-gray-300">
-                  • Max Leverage: {maxLeverage}x
-                </p>
-                <p className="text-green-400 font-medium">
-                  • Maximum Trade Size: ${maxTradeSize.toFixed(2)}
-                </p>
-              </div>
             </div>
           )}
 
