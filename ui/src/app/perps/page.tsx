@@ -17,8 +17,9 @@ import { PositionsTable } from "../../components/perps/PositionsTable/PositionsT
 import { OpenOrdersTable } from "../../components/perps/OpenOrdersTable/OpenOrdersTable";
 import { Orderbook } from "../../components/perps/Orderbook";
 import { CandleChart } from "../../components/perps/CandleChart";
-import { FormSelect } from "../../components/ui/form-select";
+import { SearchableMarketSelect } from "../../components/ui/searchable-market-select";
 import { DEFAULT_PERP_MARKET_INDEX } from "../../constants/defaultMarkets";
+import { SUPPORTED_PERP_MARKET_INDEXES } from "../../constants/supportedMarkets";
 import { MarketId, TRADING_UTILS } from "@drift-labs/common";
 import { BigNum, PRICE_PRECISION_EXP, ZERO } from "@drift-labs/sdk";
 import { useOrderbookWebSocket } from "../../hooks/perps/useOrderbookWebSocket";
@@ -35,7 +36,16 @@ import { Button } from "../../components/ui/button";
 export default function PerpsPage() {
   const { connected } = useWallet();
   const drift = useDriftStore((s) => s.drift);
-  const perpMarketConfigs = useDriftStore((s) => s.getPerpMarketConfigs());
+  const allPerpMarketConfigs = useDriftStore((s) => s.getPerpMarketConfigs());
+  
+  // Filter to only show supported markets
+  const perpMarketConfigs = useMemo(
+    () => allPerpMarketConfigs.filter((config) => 
+      SUPPORTED_PERP_MARKET_INDEXES.includes(config.marketIndex)
+    ),
+    [allPerpMarketConfigs]
+  );
+  
   const [selectedMarketIndex, setSelectedMarketIndex] = useState<number>(
     DEFAULT_PERP_MARKET_INDEX,
   );
@@ -128,7 +138,7 @@ export default function PerpsPage() {
                 <div className="grid grid-cols-3 gap-6 items-center">
                   {/* Market Selector */}
                   <div>
-                    <FormSelect
+                    <SearchableMarketSelect
                       label="Select Market"
                       value={selectedMarketIndex.toString()}
                       onValueChange={(value) => setSelectedMarketIndex(Number(value))}

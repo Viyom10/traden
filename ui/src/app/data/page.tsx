@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -18,18 +18,27 @@ import {
 } from "./components/MarketDataTableRow";
 import { useShallow } from "zustand/react/shallow";
 import { useDriftStore } from "@/stores/DriftStore";
-import { FormSelect } from "@/components/ui/form-select";
+import { SearchableMarketSelect } from "@/components/ui/searchable-market-select";
 import { DEFAULT_PERP_MARKET_INDEX } from "@/constants/defaultMarkets";
+import { SUPPORTED_PERP_MARKET_INDEXES } from "@/constants/supportedMarkets";
 
 const DataPage: React.FC = () => {
   const { lookup: markPriceLookup } = useMarkPriceStore();
   const { lookup: oraclePriceLookup } = useOraclePriceStore();
-  const { drift, perpMarketConfigs, spotMarketConfigs } = useDriftStore(
+  const { drift, allPerpMarketConfigs, spotMarketConfigs } = useDriftStore(
     useShallow((s) => ({
       drift: s.drift,
-      perpMarketConfigs: s.getPerpMarketConfigs(),
+      allPerpMarketConfigs: s.getPerpMarketConfigs(),
       spotMarketConfigs: s.getSpotMarketConfigs(),
     })),
+  );
+
+  // Filter to only show supported markets
+  const perpMarketConfigs = useMemo(
+    () => allPerpMarketConfigs.filter((config) => 
+      SUPPORTED_PERP_MARKET_INDEXES.includes(config.marketIndex)
+    ),
+    [allPerpMarketConfigs]
   );
 
   const [selectedMarketId, setSelectedMarketId] = useState<MarketId>(
@@ -64,7 +73,7 @@ const DataPage: React.FC = () => {
           <CardTitle>Selected Trade Market</CardTitle>
         </CardHeader>
         <CardContent>
-          <FormSelect
+          <SearchableMarketSelect
             label="Select Market"
             value={selectedMarketId.marketIndex.toString()}
             onValueChange={(value) =>

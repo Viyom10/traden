@@ -11,6 +11,7 @@ export {
 export { Label } from "./label";
 export { FormInput } from "./form-input";
 export { FormSelect } from "./form-select";
+export { SearchableMarketSelect } from "./searchable-market-select";
 export {
   Table,
   TableHeader,

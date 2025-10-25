@@ -1,17 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FormSelect } from "@/components/ui/form-select";
+import { SearchableMarketSelect } from "@/components/ui/searchable-market-select";
 import { SignalTradeForm } from "./SignalTradeForm";
 import { SignalsList } from "./SignalsList";
 import { useDriftStore } from "@/stores/DriftStore";
 import { Radio } from "lucide-react";
 import { PerpMarketConfig } from "@drift-labs/sdk";
+import { SUPPORTED_PERP_MARKET_INDEXES } from "@/constants/supportedMarkets";
 
 export function CreateSignal() {
-  const perpMarketConfigs = useDriftStore((s) => s.getPerpMarketConfigs());
+  const allPerpMarketConfigs = useDriftStore((s) => s.getPerpMarketConfigs());
   const [selectedMarketIndex, setSelectedMarketIndex] = useState<number>(0);
+
+  // Filter to only show supported markets
+  const perpMarketConfigs = useMemo(
+    () => allPerpMarketConfigs.filter((config) => 
+      SUPPORTED_PERP_MARKET_INDEXES.includes(config.marketIndex)
+    ),
+    [allPerpMarketConfigs]
+  );
 
   const marketOptions = perpMarketConfigs.map((config: PerpMarketConfig) => ({
     value: config.marketIndex.toString(),
@@ -29,7 +38,7 @@ export function CreateSignal() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <FormSelect
+          <SearchableMarketSelect
             label="Perpetual Market"
             value={selectedMarketIndex.toString()}
             onValueChange={(value) => setSelectedMarketIndex(parseInt(value))}
