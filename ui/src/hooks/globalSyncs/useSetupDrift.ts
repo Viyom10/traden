@@ -33,6 +33,86 @@ const DRIFT_CONFIGS: DriftConfigMap = {
       new MarketId(0, MarketType.PERP), // SOL-PERP
       new MarketId(1, MarketType.PERP), // BTC-PERP
       new MarketId(2, MarketType.PERP), // ETH-PERP
+      new MarketId(3, MarketType.PERP), // APT-PERP
+      new MarketId(4, MarketType.PERP), // 1MBONK-PERP
+      new MarketId(5, MarketType.PERP), // POL-PERP
+      new MarketId(6, MarketType.PERP), // ARB-PERP
+      new MarketId(7, MarketType.PERP), // DOGE-PERP
+      new MarketId(8, MarketType.PERP), // BNB-PERP
+      new MarketId(9, MarketType.PERP), // SUI-PERP
+      new MarketId(10, MarketType.PERP), // 1MPEPE-PERP
+      new MarketId(11, MarketType.PERP), // OP-PERP
+      new MarketId(12, MarketType.PERP), // RENDER-PERP
+      new MarketId(13, MarketType.PERP), // XRP-PERP
+      new MarketId(14, MarketType.PERP), // HNT-PERP
+      new MarketId(15, MarketType.PERP), // INJ-PERP
+      new MarketId(16, MarketType.PERP), // LINK-PERP
+      new MarketId(17, MarketType.PERP), // RLB-PERP
+      new MarketId(18, MarketType.PERP), // PYTH-PERP
+      new MarketId(19, MarketType.PERP), // TIA-PERP
+      new MarketId(20, MarketType.PERP), // JTO-PERP
+      new MarketId(21, MarketType.PERP), // SEI-PERP
+      new MarketId(22, MarketType.PERP), // AVAX-PERP
+      new MarketId(23, MarketType.PERP), // WIF-PERP
+      new MarketId(24, MarketType.PERP), // JUP-PERP
+      new MarketId(25, MarketType.PERP), // DYM-PERP
+      new MarketId(26, MarketType.PERP), // TAO-PERP
+      new MarketId(27, MarketType.PERP), // W-PERP
+      new MarketId(28, MarketType.PERP), // KMNO-PERP
+      new MarketId(29, MarketType.PERP), // TNSR-PERP
+      new MarketId(30, MarketType.PERP), // DRIFT-PERP
+      new MarketId(31, MarketType.PERP), // CLOUD-PERP
+      new MarketId(32, MarketType.PERP), // IO-PERP
+      new MarketId(33, MarketType.PERP), // ZEX-PERP
+      new MarketId(34, MarketType.PERP), // POPCAT-PERP
+      new MarketId(35, MarketType.PERP), // 1KWEN-PERP
+      new MarketId(36, MarketType.PERP), // TRUMP-WIN-2024-BET
+      new MarketId(37, MarketType.PERP), // KAMALA-POPULAR-VOTE-2024-BET
+      new MarketId(38, MarketType.PERP), // FED-CUT-50-SEPT-2024-BET
+      new MarketId(39, MarketType.PERP), // REPUBLICAN-POPULAR-AND-WIN-BET
+      new MarketId(40, MarketType.PERP), // BREAKPOINT-IGGYERIC-BET
+      new MarketId(41, MarketType.PERP), // DEMOCRATS-WIN-MICHIGAN-BET
+      new MarketId(42, MarketType.PERP), // TON-PERP
+      new MarketId(43, MarketType.PERP), // LANDO-F1-SGP-WIN-BET
+      new MarketId(44, MarketType.PERP), // MOTHER-PERP
+      new MarketId(45, MarketType.PERP), // MOODENG-PERP
+      new MarketId(46, MarketType.PERP), // WARWICK-FIGHT-WIN-BET
+      new MarketId(47, MarketType.PERP), // DBR-PERP
+      new MarketId(48, MarketType.PERP), // WLF-5B-1W-BET
+      new MarketId(49, MarketType.PERP), // VRSTPN-WIN-F1-24-DRVRS-CHMP-BET
+      new MarketId(50, MarketType.PERP), // LNDO-WIN-F1-24-US-GP-BET
+      new MarketId(51, MarketType.PERP), // 1KMEW-PERP
+      new MarketId(52, MarketType.PERP), // MICHI-PERP
+      new MarketId(53, MarketType.PERP), // GOAT-PERP
+      new MarketId(54, MarketType.PERP), // FWOG-PERP
+      new MarketId(55, MarketType.PERP), // PNUT-PERP
+      new MarketId(56, MarketType.PERP), // RAY-PERP
+      new MarketId(57, MarketType.PERP), // SUPERBOWL-LIX-LIONS-BET
+      new MarketId(58, MarketType.PERP), // SUPERBOWL-LIX-CHIEFS-BET
+      new MarketId(59, MarketType.PERP), // HYPE-PERP
+      new MarketId(60, MarketType.PERP), // LTC-PERP
+      new MarketId(61, MarketType.PERP), // ME-PERP
+      new MarketId(62, MarketType.PERP), // PENGU-PERP
+      new MarketId(63, MarketType.PERP), // AI16Z-PERP
+      new MarketId(64, MarketType.PERP), // TRUMP-PERP
+      new MarketId(65, MarketType.PERP), // MELANIA-PERP
+      new MarketId(66, MarketType.PERP), // BERA-PERP
+      new MarketId(67, MarketType.PERP), // NBAFINALS25-OKC-BET
+      new MarketId(68, MarketType.PERP), // NBAFINALS25-BOS-BET
+      new MarketId(69, MarketType.PERP), // KAITO-PERP
+      new MarketId(70, MarketType.PERP), // IP-PERP
+      new MarketId(71, MarketType.PERP), // FARTCOIN-PERP
+      new MarketId(72, MarketType.PERP), // ADA-PERP
+      new MarketId(73, MarketType.PERP), // PAXG-PERP
+      new MarketId(74, MarketType.PERP), // LAUNCHCOIN-PERP
+      new MarketId(75, MarketType.PERP), // PUMP-PERP
+      new MarketId(76, MarketType.PERP), // ASTER-PERP
+      new MarketId(77, MarketType.PERP), // XPL-PERP
+      new MarketId(78, MarketType.PERP), // 2Z-PERP
+      new MarketId(79, MarketType.PERP), // ZEC-PERP
+      new MarketId(80, MarketType.PERP), // MNT-PERP
+      new MarketId(81, MarketType.PERP), // 1KPUMP-PERP
+      new MarketId(82, MarketType.PERP), // MET-PERP
     ],
   },
 };
@@ -72,8 +152,7 @@ export const useSetupDrift = () => {
       if (isSubscribingToDrift.current) return;
 
       const currentDrift = driftRef.current;
-      const needsNewDrift =
-        !currentDrift || currentDrift.driftClient.env !== driftConfig.driftEnv;
+      const needsNewDrift = !currentDrift || currentDrift.driftClient.env !== driftConfig.driftEnv;
 
       if (!needsNewDrift) return;
 
@@ -82,7 +161,7 @@ export const useSetupDrift = () => {
 
       const walletToUse = isConnected
         ? (wallet as IWalletV2)
-        : COMMON_UI_UTILS.createPlaceholderIWallet() as IWalletV2;
+        : (COMMON_UI_UTILS.createPlaceholderIWallet() as IWalletV2);
 
       const setup = async () => {
         isSubscribingToDrift.current = true;
@@ -136,16 +215,14 @@ export const useSetupDrift = () => {
           setOraclePriceStore((s) => {
             s.lookup = authorityDriftInstance!.oraclePriceCache;
           });
-          authorityDriftInstance.onOraclePricesUpdate(
-            (newOraclePricesLookup) => {
-              setOraclePriceStore((s) => {
-                s.lookup = {
-                  ...s.lookup,
-                  ...newOraclePricesLookup,
-                };
-              });
-            },
-          );
+          authorityDriftInstance.onOraclePricesUpdate((newOraclePricesLookup) => {
+            setOraclePriceStore((s) => {
+              s.lookup = {
+                ...s.lookup,
+                ...newOraclePricesLookup,
+              };
+            });
+          });
 
           setMarkPriceStore((s) => {
             s.lookup = authorityDriftInstance!.markPriceCache;
@@ -159,9 +236,7 @@ export const useSetupDrift = () => {
           setUserAccountDataStore((s) => {
             s.lookup = authorityDriftInstance!.userAccountCache;
 
-            if (
-              Object.keys(authorityDriftInstance!.userAccountCache).length > 0
-            ) {
+            if (Object.keys(authorityDriftInstance!.userAccountCache).length > 0) {
               s.activeSubAccountId = Object.values(
                 authorityDriftInstance!.userAccountCache,
               )[0].subAccountId;
