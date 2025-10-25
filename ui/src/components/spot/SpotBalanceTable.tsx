@@ -37,7 +37,7 @@ type SortDirection = "asc" | "desc" | null;
 
 export function SpotBalanceTable({ spotMarketConfigs }: BalanceCardProps) {
   const [showBalances, setShowBalances] = useState(true);
-  const [hideZeroBalances, setHideZeroBalances] = useState(false);
+  const [hideZeroBalances, setHideZeroBalances] = useState(true);
   const [sortColumn, setSortColumn] = useState<SortColumn | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const userAccountLookup = useUserAccountDataStore((s) => s.lookup);
