@@ -42,7 +42,7 @@ export const useSignalExecution = () => {
   const markPrices = useMarkPriceStore((s) => s.lookup);
   const oraclePrices = useOraclePriceStore((s) => s.lookup);
 
-  const MAX_LEVERAGE = 2.5;
+  const MAX_LEVERAGE = 20;
 
   const calculateOrderParameters = (signal: Signal) => {
     try {

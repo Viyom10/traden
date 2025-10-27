@@ -55,7 +55,7 @@ const SignalSchema = new mongoose.Schema<ISignal>(
       type: Number,
       required: true,
       min: 0.1,
-      max: 2.5,
+      max: 20,
     },
     limitPricePercentage: {
       type: Number,

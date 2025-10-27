@@ -30,9 +30,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate leverage multiplier
-    if (leverageMultiplier < 0.1 || leverageMultiplier > 2.5) {
+    if (leverageMultiplier < 0.1 || leverageMultiplier > 20) {
       return NextResponse.json(
-        { error: 'Leverage multiplier must be between 0.1 and 2.5' },
+        { error: 'Leverage multiplier must be between 0.1 and 20' },
         { status: 400 }
       );
     }
