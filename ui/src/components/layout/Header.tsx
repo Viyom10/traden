@@ -81,13 +81,13 @@ const Header: React.FC = () => {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg">
               <Image
                 src={logoImage}
-                alt="Traden Logo"
+                alt="Signals Logo"
                 width={32}
                 height={32}
                 className="rounded-lg"
               />
             </div>
-            <span className="text-xl font-bold text-white">Traden</span>
+            <span className="text-xl font-bold text-white">Signals</span>
           </Link>
 
           {/* Desktop Navigation */}
