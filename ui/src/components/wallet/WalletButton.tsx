@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { Wallet } from "lucide-react";
 import { Button } from "@/components/ui";
 import WalletSidebar from "./WalletSidebar";
 
@@ -18,16 +17,14 @@ const WalletButton: React.FC = () => {
     <>
       <Button
         onClick={() => setSidebarOpen(true)}
-        className="!rounded-lg !text-white !h-10 !px-4 !font-medium !transition-colors bg-blue-600 hover:bg-blue-700"
+        className="rounded-full !text-white !h-10 border !border-[#C7F284] font-light !px-4 !transition-colors bg-[#0E1424] hover:bg-[#C7F284] hover:!text-black"
       >
         {!connected ? (
           <div className="flex items-center gap-2">
-            <Wallet className="h-4 w-4" />
             Connect Wallet
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <Wallet className="h-4 w-4" />
             {publicKey ? shortenAddress(publicKey.toString()) : "Connected"}
           </div>
         )}

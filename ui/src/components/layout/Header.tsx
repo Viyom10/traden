@@ -70,7 +70,7 @@ const Header: React.FC = () => {
   }, [isDevelopment, environment, setEnvironment]);
 
   return (
-    <header className="border-b border-gray-700 bg-gray-900/80 backdrop-blur-sm sticky top-0 z-50">
+    <header className="bg-[#0E1424] backdrop-blur-sm sticky top-0 z-50">
       <div className="mx-auto w-full px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
@@ -97,9 +97,9 @@ const Header: React.FC = () => {
                 key={item.name}
                 href={item.href}
                 className={clsx(
-                  "px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                  "px-3 py-2 rounded-full text-sm font-bold transition-colors",
                   pathname === item.href
-                    ? "bg-gray-800 text-white"
+                    ? "bg-[#C7F284] text-black"
                     : "text-gray-300 hover:bg-gray-800 hover:text-white",
                 )}
               >
