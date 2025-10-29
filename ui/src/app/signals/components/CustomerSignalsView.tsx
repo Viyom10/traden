@@ -421,12 +421,6 @@ export function CustomerSignalsView() {
                   )}
                 </div>
               )}
-
-              <div className="bg-yellow-600/10 border border-yellow-600/20 rounded-lg p-3">
-                <p className="text-sm text-yellow-400">
-                  <strong>Note:</strong> Fees will be applied to this trade. The order will be executed using the non-swift method to ensure proper fee collection.
-                </p>
-              </div>
             </div>
           )}
 
