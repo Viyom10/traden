@@ -139,7 +139,6 @@ export default function PerpsPage() {
                   {/* Market Selector */}
                   <div>
                     <SearchableMarketSelect
-                      label="Select Market"
                       value={selectedMarketIndex.toString()}
                       onValueChange={(value) => setSelectedMarketIndex(Number(value))}
                       options={perpMarketConfigs.map((config) => ({
