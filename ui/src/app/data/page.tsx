@@ -21,6 +21,7 @@ import { useDriftStore } from "@/stores/DriftStore";
 import { SearchableMarketSelect } from "@/components/ui/searchable-market-select";
 import { DEFAULT_PERP_MARKET_INDEX } from "@/constants/defaultMarkets";
 import { SUPPORTED_PERP_MARKET_INDEXES } from "@/constants/supportedMarkets";
+import marketImages from "@/constants/images.json";
 
 const DataPage: React.FC = () => {
   const { lookup: markPriceLookup } = useMarkPriceStore();
@@ -82,6 +83,7 @@ const DataPage: React.FC = () => {
             options={perpMarketConfigs.map((config) => ({
               value: config.marketIndex.toString(),
               label: `${config.symbol} (${config.baseAssetSymbol})`,
+              imageUrl: marketImages[config.marketIndex.toString() as keyof typeof marketImages] || null,
             }))}
           />
         </CardContent>

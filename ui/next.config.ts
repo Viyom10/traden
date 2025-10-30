@@ -2,6 +2,15 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "drift-public.s3.eu-central-1.amazonaws.com",
+        pathname: "/assets/icons/markets/**",
+      },
+    ],
+  },
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {

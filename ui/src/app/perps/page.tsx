@@ -32,6 +32,7 @@ import {
   DialogFooter,
 } from "../../components/ui/dialog";
 import { Button } from "../../components/ui/button";
+import marketImages from "../../constants/images.json";
 
 export default function PerpsPage() {
   const { connected } = useWallet();
@@ -139,12 +140,12 @@ export default function PerpsPage() {
                   {/* Market Selector */}
                   <div>
                     <SearchableMarketSelect
-                      label="Select Market"
                       value={selectedMarketIndex.toString()}
                       onValueChange={(value) => setSelectedMarketIndex(Number(value))}
                       options={perpMarketConfigs.map((config) => ({
                         value: config.marketIndex.toString(),
                         label: `${config.symbol} (${config.baseAssetSymbol})`,
+                        imageUrl: marketImages[config.marketIndex.toString() as keyof typeof marketImages] || null,
                       }))}
                     />
                   </div>

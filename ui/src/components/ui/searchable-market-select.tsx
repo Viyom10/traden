@@ -12,13 +12,14 @@ import { Label } from "./label";
 import { Input } from "./input";
 import { cn } from "@/lib/utils";
 import { Search } from "lucide-react";
+import Image from "next/image";
 
 interface SearchableMarketSelectProps {
   label?: string;
   placeholder?: string;
   value: string;
   onValueChange: (value: string) => void;
-  options: Array<{ value: string; label: string }>;
+  options: Array<{ value: string; label: string; imageUrl?: string | null }>;
   error?: string;
   helperText?: string;
   required?: boolean;
@@ -57,6 +58,11 @@ export function SearchableMarketSelect({
     }
   };
 
+  // Get the selected option for displaying with image
+  const selectedOption = useMemo(() => {
+    return options.find((option) => option.value === value);
+  }, [options, value]);
+
   return (
     <div className={cn("space-y-2", className)}>
       {label && (
@@ -67,7 +73,22 @@ export function SearchableMarketSelect({
       )}
       <Select value={value} onValueChange={onValueChange} open={isOpen} onOpenChange={handleOpenChange}>
         <SelectTrigger className={`w-full ${error ? "border-red-500" : ""}`}>
-          <SelectValue placeholder={placeholder} />
+          {selectedOption ? (
+            <div className="flex items-center gap-2">
+              {selectedOption.imageUrl && (
+                <Image
+                  src={selectedOption.imageUrl}
+                  alt={selectedOption.label}
+                  width={24}
+                  height={24}
+                  className="rounded-full"
+                />
+              )}
+              <span>{selectedOption.label}</span>
+            </div>
+          ) : (
+            <SelectValue placeholder={placeholder} />
+          )}
         </SelectTrigger>
         <SelectContent>
           <div className="sticky top-0 z-10 bg-gray-900 p-2 border-b border-gray-700">
@@ -88,7 +109,18 @@ export function SearchableMarketSelect({
             {filteredOptions.length > 0 ? (
               filteredOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
-                  {option.label}
+                  <div className="flex items-center gap-2">
+                    {option.imageUrl && (
+                      <Image
+                        src={option.imageUrl}
+                        alt={option.label}
+                        width={20}
+                        height={20}
+                        className="rounded-full"
+                      />
+                    )}
+                    <span>{option.label}</span>
+                  </div>
                 </SelectItem>
               ))
             ) : (

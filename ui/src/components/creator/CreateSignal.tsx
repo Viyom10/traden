@@ -9,6 +9,7 @@ import { useDriftStore } from "@/stores/DriftStore";
 import { Radio } from "lucide-react";
 import { PerpMarketConfig } from "@drift-labs/sdk";
 import { SUPPORTED_PERP_MARKET_INDEXES } from "@/constants/supportedMarkets";
+import marketImages from "@/constants/images.json";
 
 export function CreateSignal() {
   const allPerpMarketConfigs = useDriftStore((s) => s.getPerpMarketConfigs());
@@ -25,6 +26,7 @@ export function CreateSignal() {
   const marketOptions = perpMarketConfigs.map((config: PerpMarketConfig) => ({
     value: config.marketIndex.toString(),
     label: config.symbol,
+    imageUrl: marketImages[config.marketIndex.toString() as keyof typeof marketImages] || null,
   }));
 
   return (
