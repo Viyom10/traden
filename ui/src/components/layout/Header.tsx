@@ -70,7 +70,7 @@ const Header: React.FC = () => {
   }, [isDevelopment, environment, setEnvironment]);
 
   return (
-    <header className="bg-[#0E1424] backdrop-blur-sm sticky top-0 z-50">
+    <header className="bg-[#0E1424] backdrop-blur-sm sticky top-0 z-50 py-1">
       <div className="mx-auto w-full px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
