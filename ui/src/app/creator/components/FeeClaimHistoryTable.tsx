@@ -11,8 +11,11 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { IFeeClaim } from "@/schemas/FeeClaimSchema";
-import { Copy, X } from "lucide-react";
+import { Copy, X, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
+import { useDriftStore } from "@/stores/DriftStore";
+import { getSolscanTxUrl, shortSig } from "@/lib/solscan";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +32,7 @@ interface FeeClaimHistoryTableProps {
 }
 
 export function FeeClaimHistoryTable({ claims, onCancelClaim, isCancelling }: FeeClaimHistoryTableProps) {
+  const environment = useDriftStore((s) => s.environment);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [selectedClaimId, setSelectedClaimId] = useState<string | null>(null);
 
@@ -121,14 +125,24 @@ export function FeeClaimHistoryTable({ claims, onCancelClaim, isCancelling }: Fe
                 <TableCell>{getStatusBadge(claim.status)}</TableCell>
                 <TableCell className="text-gray-300">
                   {claim.txSignature ? (
-                    <a
-                      href={`https://solscan.io/tx/${claim.txSignature}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-400 hover:text-blue-300 underline text-sm"
-                    >
-                      View
-                    </a>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={`/receipt/${claim.txSignature}`}
+                        className="font-mono text-xs text-gray-300 hover:text-white hover:underline"
+                      >
+                        {shortSig(claim.txSignature)}
+                      </Link>
+                      <a
+                        href={getSolscanTxUrl(claim.txSignature, environment)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
+                        title="Open in Solscan"
+                      >
+                        Solscan
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
                   ) : (
                     <span className="text-gray-500 text-sm">Pending</span>
                   )}

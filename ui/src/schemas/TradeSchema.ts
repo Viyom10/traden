@@ -1,5 +1,17 @@
+/**
+ * @module schemas/TradeSchema
+ *
+ * MongoDB schema for the OFF-CHAIN mirror of trade submissions.
+ *
+ * Like {@link FeeSchema}, this is purely a denormalized view for the UI;
+ * the canonical record is the on-chain transaction identified by
+ * `txSignature`. The `useSwift` flag is recorded so the audit trail
+ * distinguishes orders that did vs. did not flow through the atomic-fee
+ * interceptor (Swift orders bypass `driftClient.sendTransaction`).
+ */
 import mongoose from 'mongoose';
 
+/** Off-chain mirror of a single trade submission. */
 export interface ITrade {
   userId: string;
   experienceId: string;

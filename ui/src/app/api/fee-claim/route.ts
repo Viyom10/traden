@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import dbConnect from '@/lib/db';
+import dbConnect, { isMongoConfigured } from '@/lib/db';
 import FeeClaim from '@/schemas/FeeClaimSchema';
 import Fee from '@/schemas/FeeSchema';
 
 export async function POST(request: NextRequest) {
   try {
+    if (!isMongoConfigured()) {
+      return NextResponse.json(
+        { success: true, mongoConfigured: false, message: 'MONGODB_URI not set — claim not persisted' },
+        { status: 200 }
+      );
+    }
     await dbConnect();
 
     const body = await request.json();
@@ -57,10 +63,26 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    await dbConnect();
-
     const searchParams = request.nextUrl.searchParams;
     const experienceId = searchParams.get('experienceId');
+
+    if (!isMongoConfigured()) {
+      return NextResponse.json(
+        {
+          success: true,
+          mongoConfigured: false,
+          claims: [],
+          totalClaimedInLamports: '0',
+          totalClaimedInSol: 0,
+          totalFeesInLamports: '0',
+          totalFeesInSol: 0,
+          claimableFeesInLamports: '0',
+          claimableFeesInSol: 0,
+        },
+        { status: 200 }
+      );
+    }
+    await dbConnect();
 
     if (!experienceId) {
       return NextResponse.json(
@@ -119,6 +141,12 @@ export async function GET(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    if (!isMongoConfigured()) {
+      return NextResponse.json(
+        { success: true, mongoConfigured: false, message: 'MONGODB_URI not set — claim not deleted' },
+        { status: 200 }
+      );
+    }
     await dbConnect();
 
     const searchParams = request.nextUrl.searchParams;

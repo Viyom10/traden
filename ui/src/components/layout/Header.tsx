@@ -35,7 +35,7 @@ const Header: React.FC = () => {
   const setEnvironment = useDriftStore((s) => s.setEnvironment);
   const accessLevel = useUserStore((s) => s.accessLevel);
   
-  // Check if we should show the environment dropdown
+  // Check whether to show the environment dropdown
   const isDevelopment = process.env.NEXT_PUBLIC_ENVIRONMENT === "development";
   
   // Check if the connected wallet is the admin wallet
@@ -50,13 +50,19 @@ const Header: React.FC = () => {
     { name: "Signals", href: "/signals" },
     { name: "User", href: "/user" },
     { name: "Spot", href: "/spot" },
+    // Educational / cryptography demonstration pages (visible to all)
+    { name: "Blockchain", href: "/blockchain" },
+    { name: "Verify", href: "/verify" },
+    { name: "Security", href: "/security" },
+    { name: "Benchmarks", href: "/benchmarks" },
+    { name: "Explorer", href: "/explorer" },
   ];
-  
+
   // Only add Creator tab if user is a Whop admin/creator
   if (isCreator) {
     navigation.push({ name: "Creator", href: "/creator" });
   }
-  
+
   // Only add Admin tab if the connected wallet is the admin wallet
   if (isAdmin) {
     navigation.push({ name: "Admin", href: "/admin" });

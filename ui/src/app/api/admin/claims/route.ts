@@ -1,16 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import dbConnect from '@/lib/db';
+import dbConnect, { isMongoConfigured } from '@/lib/db';
 import FeeClaim from '@/schemas/FeeClaimSchema';
 
 export async function GET(request: NextRequest) {
   try {
-    await dbConnect();
-
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get('status');
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '10', 10);
     const skip = (page - 1) * limit;
+
+    if (!isMongoConfigured()) {
+      return NextResponse.json(
+        {
+          success: true,
+          mongoConfigured: false,
+          claims: [],
+          pagination: { page, limit, totalCount: 0, totalPages: 0 },
+        },
+        { status: 200 }
+      );
+    }
+    await dbConnect();
 
     // Build query
     const query: { status?: string } = {};
@@ -52,6 +63,12 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
+    if (!isMongoConfigured()) {
+      return NextResponse.json(
+        { success: true, mongoConfigured: false, message: 'MONGODB_URI not set — claim not updated' },
+        { status: 200 }
+      );
+    }
     await dbConnect();
 
     const body = await request.json();

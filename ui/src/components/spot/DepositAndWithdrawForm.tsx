@@ -54,7 +54,7 @@ export function DepositAndWithdrawForm({
   // Update selected subaccount when activeSubAccountId changes or when userAccounts are loaded
   useEffect(() => {
     if (userAccounts.length > 0 && selectedSubAccountId === undefined) {
-      // If no subaccount is selected and we have accounts, select the first one
+      // If no subaccount is selected and there are accounts, select the first one
       setSelectedSubAccountId(userAccounts[0].subAccountId);
     }
   }, [activeSubAccountId, userAccounts, selectedSubAccountId]);

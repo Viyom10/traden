@@ -166,7 +166,12 @@ export const useSetupDrift = () => {
           wallet: walletToUse,
         });
 
-        // Install trading fee interceptor for perp orders
+        // Install the atomic-fee interceptor immediately after constructing
+        // the AuthorityDrift instance. This MUST happen before any subscribe
+        // call so the wrapped `driftClient.sendTransaction` is in place
+        // before user-initiated orders can fire. Installing once per Drift
+        // instance is required — see DriftClientWrapper for the rationale
+        // (double install would chain prepends and double-charge fees).
         installTradingFeeInterceptor(authorityDriftInstance);
 
         try {

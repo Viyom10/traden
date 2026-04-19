@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import dbConnect from '@/lib/db';
+import dbConnect, { isMongoConfigured } from '@/lib/db';
 import Trade from '@/schemas/TradeSchema';
 
 export async function POST(request: NextRequest) {
   try {
+    if (!isMongoConfigured()) {
+      return NextResponse.json(
+        { success: true, mongoConfigured: false, message: 'MONGODB_URI not set — trade not persisted off-chain' },
+        { status: 200 }
+      );
+    }
     await dbConnect();
 
     const body = await request.json();
@@ -73,13 +79,27 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    await dbConnect();
-
     const searchParams = request.nextUrl.searchParams;
-    const userId = searchParams.get('userId');
-    const experienceId = searchParams.get('experienceId');
     const limit = parseInt(searchParams.get('limit') || '100', 10);
     const skip = parseInt(searchParams.get('skip') || '0', 10);
+
+    if (!isMongoConfigured()) {
+      return NextResponse.json(
+        {
+          success: true,
+          mongoConfigured: false,
+          trades: [],
+          totalCount: 0,
+          limit,
+          skip,
+        },
+        { status: 200 }
+      );
+    }
+    await dbConnect();
+
+    const userId = searchParams.get('userId');
+    const experienceId = searchParams.get('experienceId');
 
     // Build query
     const query: { userId?: string; experienceId?: string } = {};

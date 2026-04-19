@@ -1,0 +1,332 @@
+────────────────────────────────────────────────────────────────────────────────
+GAMMA PROMPT  —  TRADEN-PROD  —  10-SLIDE FINAL PRESENTATION
+────────────────────────────────────────────────────────────────────────────────
+
+Paste this entire block into Gamma's "Generate" → "Text" prompt box.
+Choose: 10 cards • dark theme • image style "Photorealistic + technical".
+
+────────────────────────────────────────────────────────────────────────────────
+TITLE: TRADEN-PROD — Atomic Fee Enforcement in Decentralized Perpetual Trading on Solana
+
+CONTEXT FOR THE GENERATOR:
+You are designing a 10-slide final-evaluation deck for the BITS Pilani course
+"BITS F452 — Blockchain Technology". The project is by Viyom Gupta
+(2023A7PS0413G).
+
+The project is a Solana-based decentralized perpetual futures trading platform
+built on top of Drift Protocol. Its core academic contribution is a technique
+called "atomic fee enforcement": the platform's 5-bps trading fee is bundled
+into the same Solana transaction as the user's trade, so the user's single
+Ed25519 signature (over a SHA-256 hash of the message) cryptographically binds
+the two — they either both succeed or both revert. This is achieved entirely in
+the application layer, with no new on-chain smart contract.
+
+DESIGN RULES (apply to EVERY slide):
+• Dark premium fintech theme. Backgrounds: deep navy/black (#0A0E1A → #0F1729).
+• Solana-style neon gradient accents (purple #9945FF → green #14F195).
+• Use technical iconography (lock, hash, signature, ledger, chain links, validator
+  nodes, candlestick chart).
+• Every slide must contain at least one diagram, table, or icon row — NEVER a
+  bullet-only slide.
+• Use monospace for hashes, signatures, code, and pubkeys.
+• Use CONCISE bullets (≤ 7 words each) and high-impact visuals.
+• Reserve emojis to status badges (✅, ❌, ⚡, 🔒) only.
+• Title font weight 800; body weight 400; subhead weight 600.
+• Footer on each slide: "BITS F452 · Blockchain Technology · Viyom Gupta · 2023A7PS0413G"
+
+TONE: smart, technical, innovative, startup-quality, top-tier BITS Pilani final
+project — NOT generic student slides.
+
+────────────────────────────────────────────────────────────────────────────────
+SLIDE 1 — TITLE & VISION
+────────────────────────────────────────────────────────────────────────────────
+Title:    TRADEN-PROD
+Subtitle: Atomic Fee Enforcement in Decentralized Perpetual Trading
+Tagline:  "Ensuring platform fees and trades execute together, or not at all."
+
+Visual:   Full-bleed background — dark candlestick chart fading into a Solana
+          neon-gradient mesh. Foreground center: large title in white with the
+          word "ATOMIC" highlighted in the green→purple gradient.
+
+Bottom row:
+  • Solana logo (small)
+  • Drift Protocol logo (small)
+  • "BITS Pilani · Goa Campus" text
+  • Author: Viyom Gupta (2023A7PS0413G)
+  • Course: BITS F452 — Blockchain Technology
+
+────────────────────────────────────────────────────────────────────────────────
+SLIDE 2 — PROBLEM STATEMENT
+────────────────────────────────────────────────────────────────────────────────
+Title: Fees Are the Weakest Link in DeFi UX
+
+Side-by-side BEFORE / AFTER comparison diagram:
+
+  BEFORE (Current DEXes):
+     [User Order]  →  [TX #1: Trade]  ✅
+                      [TX #2: Fee]    ❌  ← can be dropped
+     Fee evasion possible. Revenue leakage. Trust required.
+
+  AFTER (TRADEN-PROD):
+     [User Order]  →  [SINGLE TX: Fee + Trade]  → both ✅ OR both ❌
+     Fee evasion mathematically impossible.
+
+Bullet points (right side):
+  • Users bypass off-chain fees
+  • Separate fee = friction + race conditions
+  • MEV bots reorder transactions
+  • Platform monetisation is fragile
+  • Trust assumptions undermine Web3
+
+Footer caption: "We need a fee model that is trustless, automatic, and
+non-bypassable."
+
+────────────────────────────────────────────────────────────────────────────────
+SLIDE 3 — OUR INNOVATION (CORE THESIS)
+────────────────────────────────────────────────────────────────────────────────
+Title: Atomic Fee Enforcement — Cryptography Does the Policing
+
+Center: a vertical FLOW DIAGRAM with neon-glow arrows:
+
+   [User Places Order]
+            │
+            ▼
+   [Interceptor injects Fee Instruction]
+            │
+            ▼
+   [SystemProgram.transfer  +  Drift.placePerpOrder]
+            │  (one transaction message)
+            ▼
+   [SHA-256 hash of message]
+            │
+            ▼
+   [Ed25519 signature over hash]
+            │
+            ▼
+   [Solana Network — Atomic Execution]
+            │
+       ┌────┴────┐
+       ▼         ▼
+   ✅ both    ❌ both
+   succeed     revert
+
+Side panel — three highlight cards:
+  🔒  ONE signature   covers BOTH instructions
+  ⚡  ZERO new code   no smart contract deployed
+  🧮  MATHEMATICAL    security from Ed25519 + SHA-256, not policy
+
+────────────────────────────────────────────────────────────────────────────────
+SLIDE 4 — SYSTEM ARCHITECTURE
+────────────────────────────────────────────────────────────────────────────────
+Title: Five-Layer Architecture
+
+Render a clean LAYERED stack diagram (top to bottom):
+
+  ┌──────────────────────────────────────────────────────────┐
+  │ 1. Presentation                                          │
+  │    Next.js 15 · React 19 · Tailwind 4 · shadcn/ui        │
+  │    /perps  /spot  /signals  /admin  /creator  /receipt   │
+  │    /blockchain  /verify  /security  /benchmarks  /explorer│
+  ├──────────────────────────────────────────────────────────┤
+  │ 2. State & Sync                                          │
+  │    Zustand · React Query · AuthorityDrift subscriptions  │
+  ├──────────────────────────────────────────────────────────┤
+  │ 3. ⭐ Atomic Fee Enforcement                              │
+  │    DriftClientWrapper.ts  +  tradingFee.ts               │
+  ├──────────────────────────────────────────────────────────┤
+  │ 4. Protocol & Wallet                                     │
+  │    Drift SDK · Solana web3.js · Wallet Adapter · tweetnacl│
+  ├──────────────────────────────────────────────────────────┤
+  │ 5. Persistence & APIs                                    │
+  │    Next.js route handlers · MongoDB · Pyth/Switchboard   │
+  └──────────────────────────────────────────────────────────┘
+
+Right side — three "external" connection cards:
+  • Phantom Wallet (Ed25519 keys)
+  • Solana Devnet / Mainnet  (Drift Program · System Program · Pyth · Switchboard)
+  • MongoDB (off-chain audit trail)
+
+────────────────────────────────────────────────────────────────────────────────
+SLIDE 5 — KEY FEATURES IMPLEMENTED
+────────────────────────────────────────────────────────────────────────────────
+Title: A Complete DeFi Stack — Plus Six Demo-Ready Verification Pages
+
+Two columns:
+
+  COLUMN A — Trading Platform
+    ✅ 40+ perpetual markets
+    ✅ Candlestick charts (lightweight-charts)
+    ✅ Live orderbook (WebSocket streaming)
+    ✅ 5 order types (market / limit / TP / SL / oracle-limit)
+    ✅ Spot deposit / withdraw / swap
+    ✅ Phantom & Solflare integration
+    ✅ Trading-signal marketplace
+    ✅ Creator revenue sharing (50 / 50)
+    ✅ Admin & creator dashboards
+    ✅ MongoDB audit trail with Solscan links
+
+  COLUMN B — Education & Verification (NEW)
+    ✅ /blockchain  — syllabus → code mapping
+    ✅ /verify      — live Ed25519 + SHA-256 wizard
+    ✅ /security    — six-attack simulator
+    ✅ /benchmarks  — overhead measurements
+    ✅ /explorer    — on-chain tx verifier
+    ✅ /receipt     — per-trade shareable card
+
+Bottom row: small composite "screenshot mosaic" of 3 dashboards (admin stats,
+perps trading view, verify wizard) faded behind a Solana-gradient overlay.
+
+────────────────────────────────────────────────────────────────────────────────
+SLIDE 6 — BLOCKCHAIN CONCEPTS DEMONSTRATED  (Syllabus Coverage)
+────────────────────────────────────────────────────────────────────────────────
+Title: Mapped to BITS F452 Syllabus — Every Major Topic, Live
+
+Render a 3-column ICON GRID (4 rows × 3 columns = 12 tiles):
+
+  🔑 Asymmetric Crypto       #️⃣ SHA-256                ✍️ Digital Signatures
+     Ed25519 / Curve25519        Web Crypto + tweetnacl     One sig covers all
+                                                            instructions
+
+  🪙 Wallets & Addresses     🧾 Transactions           ⚛️ Atomicity
+     Phantom · base58 keys      V0 + Address Lookup       All-or-nothing
+                                Tables                    runtime
+
+  ⏱  Replay Protection       📡 Decentralised Oracles  🛡 Smart Contracts
+     150-block hash window     Pyth · Switchboard         Drift Program +
+                                                          SystemProgram
+
+  🔗 Consensus               🔍 Identity Mgmt          📈 Real DeFi App
+     PoH + Tower BFT           Pubkey-gated dashboards   Live perps trading
+
+Footer: "Every tile maps to a specific file in the repo — see /blockchain in
+the live app."
+
+────────────────────────────────────────────────────────────────────────────────
+SLIDE 7 — SECURITY PROOF
+────────────────────────────────────────────────────────────────────────────────
+Title: Six Classes of Attacks — All Provably Defeated
+
+Render a TABLE (6 rows × 3 columns) with red-cross / green-tick badges:
+
+  ┌───────────────────────────┬──────────────────────────┬─────────┐
+  │ Attack                    │ Why it fails             │ Status  │
+  ├───────────────────────────┼──────────────────────────┼─────────┤
+  │ Fee Removal               │ msg hash changes →       │  ✅     │
+  │                           │ signature invalid        │ blocked │
+  │ Fee Amount Manipulation   │ SHA-256 avalanche        │  ✅     │
+  │ Recipient Swap (MITM)     │ account keys are signed  │  ✅     │
+  │ Replay Attack             │ blockhash window expires │  ✅     │
+  │ Signature Forgery         │ 2¹²⁸ Ed25519 hardness    │  ✅     │
+  │ Instruction Reordering    │ message bytes change     │  ✅     │
+  └───────────────────────────┴──────────────────────────┴─────────┘
+
+Side visual — two stacked monospace blocks labelled
+"Original SHA-256:" and "Tampered SHA-256:" showing a 64-hex-char hash where
+roughly half the digits are highlighted red to dramatise the avalanche effect.
+
+Caption: "Live demo: /verify and /security in the deployed app."
+
+────────────────────────────────────────────────────────────────────────────────
+SLIDE 8 — PERFORMANCE & EFFICIENCY
+────────────────────────────────────────────────────────────────────────────────
+Title: Atomic Fee Enforcement Is Essentially Free
+
+Render four METRIC CARDS in a 2×2 grid (each card big and centered):
+
+  ┌─────────────────────────┐  ┌─────────────────────────┐
+  │  +64 bytes              │  │  < 1 ms                 │
+  │  Transaction-size       │  │  Extra signing latency  │
+  │  overhead               │  │  (100-iter average)     │
+  └─────────────────────────┘  └─────────────────────────┘
+
+  ┌─────────────────────────┐  ┌─────────────────────────┐
+  │  ~150 / 200 000 CU      │  │  ~ 0.07 %               │
+  │  Compute-unit cost of   │  │  Total relative         │
+  │  one fee instruction    │  │  overhead               │
+  └─────────────────────────┘  └─────────────────────────┘
+
+Below the cards — small comparison TABLE (Ethereum vs Bitcoin vs Solana):
+
+  Network    Block Time    Fee for one tx (typ.)    TPS
+  Ethereum   12 s          ~$1 – $50                ~30
+  Bitcoin    10 min        ~$1 – $25                ~7
+  Solana     0.4 s         ≈ $0.00025               ~65 000
+
+Caption: "Solana's parameters make atomic bundling cost-negligible at scale."
+
+────────────────────────────────────────────────────────────────────────────────
+SLIDE 9 — REAL IMPACT & USE CASES
+────────────────────────────────────────────────────────────────────────────────
+Title: Beyond a Trading Platform — A General Monetisation Primitive
+
+Center: a HUB-AND-SPOKE diagram with "Atomic Fee Bundle" in the center node
+(neon ring) and 7 spokes radiating out, each with an icon + label:
+
+  • Perpetual DEXes
+  • Copy-trading platforms
+  • Signal marketplaces
+  • Creator revenue systems
+  • Subscription-based DeFi apps
+  • Brokerless exchanges
+  • DAO protocol monetisation
+
+Right-side panel — "Why this matters":
+  ⚡  No new audit cost
+  🔁  Portable across any Solana DEX
+  🔐  Security from MATH, not from policy
+  💸  Reliable, predictable platform revenue
+  🌐  Composable with the entire SVM ecosystem
+
+Footer caption: "From DEX fees to subscriptions — anywhere a platform must be
+paid before it serves the user."
+
+────────────────────────────────────────────────────────────────────────────────
+SLIDE 10 — CONCLUSION & FUTURE SCOPE
+────────────────────────────────────────────────────────────────────────────────
+Title: Monetisation Without Trust. Trading Without Compromise.
+
+Top half — KEY TAKEAWAYS, three large icons in a row:
+
+  🧮  CRYPTOGRAPHIC GUARANTEE
+       Ed25519 + SHA-256 + atomic execution
+       = unbypassable platform fees
+
+  🚀  ZERO ON-CHAIN FOOTPRINT
+       No smart contract.
+       No audits. Portable.
+
+  🎓  ACADEMIC COMPLETENESS
+       Every BITS F452 syllabus block
+       exercised, demoed, and benchmarked.
+
+Bottom half — FUTURE SCOPE, three cards:
+
+  🌐 Mainnet Deployment        ⚙️ Cross-chain Port         🤖 Dynamic Fee Engine
+     Production builder            Sui / Aptos / Sei            DAO-governed,
+     authority + signed            via the same                 tier-aware,
+     fee receipts                  composition idea             still atomic
+
+Closing banner (centered, gradient text, big):
+  ▶  Monetisation without trust.
+  ▶  Trading without compromise.
+
+Bottom-right corner: small QR code labeled "Live demo + repo".
+
+────────────────────────────────────────────────────────────────────────────────
+END OF GAMMA PROMPT
+────────────────────────────────────────────────────────────────────────────────
+
+USAGE NOTES:
+1. After Gamma generates the deck, manually replace the QR code on slide 10
+   with one that points to your GitHub repo or live demo URL.
+2. On slide 5's bottom-row mosaic, drop in real screenshots of /perps,
+   /verify, and /admin once the app is running locally — they will look
+   far more compelling than Gamma's stock visuals.
+3. If Gamma asks for a "preferred slide style", choose
+   "Modern · Tech · Dark" with "Editorial layout".
+4. Do not let Gamma auto-shorten the technical terms — keep "Ed25519",
+   "SHA-256", "Address Lookup Table", "VersionedTransaction", "Tower BFT",
+   etc. spelled out exactly. They are the academic vocabulary the panel
+   wants to see.
+5. After generation: review slide 7's hash visualisation — Gamma sometimes
+   gets clever with hex strings; keep them strictly monospace.

@@ -3,7 +3,7 @@
 
 > **Project**: Traden — A Solana-based Decentralized Perpetual Futures Trading Platform  
 > **Course**: BITS F452 — Blockchain Technology, BITS Pilani Goa  
-> **Team**: Anshul Shah (2022B3A70406G) & Viyom Gupta (2023A7PS0413G)
+> **Author**: Viyom Gupta (2023A7PS0413G)
 
 ---
 
@@ -198,14 +198,74 @@
 │                  └── Spread, bid/ask data                           │
 │                                                                     │
 ├─────────────────────────────────────────────────────────────────────┤
-│  NEW PAGES (To Be Implemented for End-Sem)                          │
+│  EDUCATION & VERIFICATION PAGES (✅ Implemented)                    │
 │                                                                     │
 │  /blockchain ─── Course Concepts → Code Mapping                     │
-│  /verify ─────── SHA-256 & Ed25519 Live Demos                       │
-│  /security ───── Attack Resistance Tests                            │
-│  /benchmarks ─── Performance Measurements                           │
-│  /explorer ───── On-Chain Transaction Verifier                      │
+│  │              ├── 7 expandable concept groups                     │
+│  │              ├── Theory + file ref + live-demo links             │
+│  │              └── Bitcoin / Ethereum / Solana comparison rows     │
+│  │                                                                  │
+│  /verify ──────── SHA-256 & Ed25519 Live Demos                      │
+│  │              ├── 10-step transaction-integrity wizard            │
+│  │              ├── Atomicity proof — multi-tamper matrix           │
+│  │              ├── Avalanche-effect hash visualisation             │
+│  │              └── Merkle proof builder + tamper test (NEW)        │
+│  │                                                                  │
+│  /security ────── Attack Resistance Tests                           │
+│  │              ├── Replay  /  Signature Forgery                    │
+│  │              ├── Fee Bypass  /  Fee Amount Manipulation          │
+│  │              ├── Instruction Reorder  /  MITM Recipient Swap     │
+│  │              └── "Run All" button → 6× PASS with byte-level diff │
+│  │                                                                  │
+│  /benchmarks ──── Performance Measurements                          │
+│  │              ├── Tx-size overhead (bytes & %)                    │
+│  │              ├── Sign latency (100-iter avg/min/max)             │
+│  │              ├── Compute-unit estimate vs 200K budget            │
+│  │              └── Construction-time delta                         │
+│  │                                                                  │
+│  /explorer ────── On-Chain Transaction Verifier                     │
+│  │              ├── Paste signature → getParsedTransaction          │
+│  │              ├── Highlights fee-instr + Drift-instr atomicity    │
+│  │              ├── Renders the full CPI tree (NEW) — every nested  │
+│  │              │   CPI from meta.innerInstructions, indented under │
+│  │              │   its parent, with friendly program labels        │
+│  │              └── Recent fees & trades from Mongo (clickable)     │
+│  │                                                                  │
+│  /receipt/[sig] ─ Per-Transaction Receipt (dynamic route)           │
+│                  ├── Status, block, timestamp, blockhash            │
+│                  ├── Fee details + recipient + percentage           │
+│                  ├── Trade details (market, side, size)             │
+│                  ├── Cryptographic proof block                      │
+│                  └── Solscan deep-link (env aware)                  │
 └─────────────────────────────────────────────────────────────────────┘
+```
+
+## 2.4 Education / Verification Layer File Map
+
+```
+ui/src/
+├── app/
+│   ├── blockchain/page.tsx          ← syllabus → codebase mapping
+│   ├── verify/page.tsx              ← live SHA-256 + Ed25519 demos
+│   ├── security/page.tsx            ← 6× attack simulations
+│   ├── benchmarks/page.tsx          ← overhead measurements
+│   ├── explorer/page.tsx            ← signature lookup + recent activity
+│   └── receipt/[signature]/page.tsx ← per-tx receipt route
+└── lib/
+    ├── solscan.ts                   ← env-aware Solscan URL helpers
+    │                                  (getSolscanTxUrl, getSolscanAddressUrl, shortSig)
+    ├── merkle.ts                    ← SHA-256 Merkle tree + proof gen/verify
+    │                                  (buildMerkleTree, getProof, verifyProof)
+    │                                  — backs Section 4 of /verify
+    └── cpi.ts                       ← CPI tree extractor
+                                       (extractCpiTree, programLabel, friendly
+                                       labels for System/SPL Token/Drift/Pyth/
+                                       Switchboard/Compute Budget/ALT) — backs
+                                       the Instruction & CPI tree on /explorer
+
+External libs added (browser-only crypto):
+  • tweetnacl ^1.0.3   — Ed25519 sign/verify in the browser
+  • Web Crypto API     — built-in, used for SHA-256
 ```
 
 ---
@@ -848,7 +908,10 @@
 │ L3-8: Digital Signatures              │ Ed25519 signature = single sig covers  │
 │                                        │ fee + trade atomically                 │
 ├────────────────────────────────────────┼────────────────────────────────────────┤
-│ L3-8: Merkle Tree                     │ Solana block structure (hash chains)   │
+│ L3-8: Merkle Tree                     │ src/lib/merkle.ts (full SHA-256 tree   │
+│                                        │ + proof gen/verify) demoed live on     │
+│                                        │ /verify Section 4. Same primitive that │
+│                                        │ Solana validators use for bank-hash.   │
 ├────────────────────────────────────────┼────────────────────────────────────────┤
 │ L9-14: Wallets & Addresses            │ Phantom wallet, PublicKey.toBase58()   │
 ├────────────────────────────────────────┼────────────────────────────────────────┤
@@ -864,6 +927,12 @@
 │ L20-21: Smart Contracts               │ Drift Program, SystemProgram = on-chain│
 │                                        │ programs; our fee logic = app-layer    │
 │                                        │ "contract"                             │
+├────────────────────────────────────────┼────────────────────────────────────────┤
+│ L20-21: Cross-Program Invocation      │ src/lib/cpi.ts (extractCpiTree) +      │
+│                                        │ /explorer renders the live CPI tree    │
+│                                        │ from meta.innerInstructions for any    │
+│                                        │ signature (Drift → System / SPL Token /│
+│                                        │ Pyth / Switchboard)                    │
 ├────────────────────────────────────────┼────────────────────────────────────────┤
 │ L22-24: Replay Attacks                │ Blockhash expiry prevents replay       │
 ├────────────────────────────────────────┼────────────────────────────────────────┤
@@ -963,19 +1032,22 @@
   │  • 50/50 revenue split                                          │
   │  • Admin & Creator dashboards                                    │
   │                                                                 │
-  │  PHASE 5: Cryptographic Validation             ░░░░░░░░░░   0%  │
-  │  • SHA-256 integrity verification demo          ← TODO          │
-  │  • Ed25519 signature verification demo          ← TODO          │
-  │  • Attack resistance tests (6 attacks)          ← TODO          │
-  │  • Performance benchmarks                       ← TODO          │
+  │  PHASE 5: Cryptographic Validation             ██████████ 100%  │
+  │  • SHA-256 integrity verification demo  (/verify)  ✅           │
+  │  • Ed25519 signature verification demo  (/verify)  ✅           │
+  │  • Attack resistance tests (6 attacks)  (/security) ✅          │
+  │  • Performance benchmarks               (/benchmarks) ✅        │
   │                                                                 │
-  │  PHASE 6: Documentation & Presentation         ░░░░░░░░░░   0%  │
-  │  • Blockchain concepts page                     ← TODO          │
-  │  • On-chain transaction explorer                ← TODO          │
-  │  • JSDoc documentation                          ← TODO          │
-  │  • Final report & presentation                  ← TODO          │
+  │  PHASE 6: Documentation & Presentation         ██████████ 100%  │
+  │  • Blockchain concepts page             (/blockchain) ✅        │
+  │  • On-chain transaction explorer        (/explorer)  ✅         │
+  │  • Per-transaction receipt route        (/receipt)   ✅         │
+  │  • Solscan links across admin/creator tables         ✅         │
+  │  • JSDoc on DriftClientWrapper / tradingFee /                   │
+  │    useSetupDrift / FeeSchema / TradeSchema           ✅         │
+  │  • Architecture, getting-started, and pitch docs     ✅         │
   │                                                                 │
-  │  OVERALL PROGRESS:  ████████████████░░░░░░░░░░  ~65%            │
+  │  OVERALL PROGRESS:  ██████████████████████████  100%            │
   └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1007,25 +1079,164 @@
 # 15. HOW TO RUN THE PROJECT
 
 ```
-  1. Navigate to the UI directory:
-     cd C:\Users\hp\OneDrive\Desktop\traden\traden-prod\ui
+  1. Clone & enter the UI directory:
+     git clone https://github.com/Viyom10/traden.git
+     cd traden/ui
 
-  2. Install dependencies:
-     bun install  (or npm install)
+  2. Install dependencies (the lockfile is bun.lock):
+     bun install     # or: npm install / yarn install / pnpm install
 
-  3. Create .env.local with:
+  3. Create ui/.env.local with:
      NEXT_PUBLIC_SOLANA_MAINNET_RPC_ENDPOINT=<your_rpc_url>
      NEXT_PUBLIC_SOLANA_DEVNET_RPC_ENDPOINT=<your_rpc_url>
      NEXT_PUBLIC_BUILDER_AUTHORITY=<wallet_address_for_fees>
      MONGODB_URI=<your_mongodb_connection_string>
 
   4. Start development server:
-     bun dev  (or npm run dev)
+     bun run dev     # or: npm run dev
 
   5. Open http://localhost:3000
      → Redirects to /perps (main trading page)
      → Connect Phantom wallet to start trading
+
+  See GETTING_STARTED.md for the full demo script (the seven screens
+  to show during a presentation, in order).
 ```
+
+---
+
+# 16. EDUCATION & VERIFICATION LAYER — INTERNALS
+
+This is the layer that turns the project from "a working DEX" into
+"a defensible academic artefact". Every page below runs entirely in
+the browser using `Keypair.generate()` + `tweetnacl` + Web Crypto, so
+it works without a wallet, without an RPC, and without MongoDB —
+which makes it perfect for a live demo on any laptop.
+
+## 16.1 `/verify` — SHA-256 + Ed25519 Wizard
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  10-STEP TRANSACTION INTEGRITY WIZARD                              │
+│                                                                    │
+│  Step 1.  Generate fresh Ed25519 keypair  (Keypair.generate)       │
+│  Step 2.  Build "fee" instruction         (SystemProgram.transfer) │
+│  Step 3.  Build "trade" instruction       (SystemProgram.transfer) │
+│  Step 4.  Compile to TransactionMessage   (V0)                     │
+│  Step 5.  Show SHA-256 of serialized message (hex)                 │
+│  Step 6.  Sign hash with Ed25519 (tweetnacl.sign.detached)         │
+│  Step 7.  Verify signature → ✅                                    │
+│  Step 8.  Tamper: bump fee by 1 lamport, rebuild & re-hash         │
+│  Step 9.  Diff old vs new hash (avalanche visible inline)          │
+│  Step 10. Verify OLD signature against NEW hash → ❌ INVALID       │
+│                                                                    │
+│  TAMPER MATRIX (separate section)                                  │
+│  ┌────────────────────────────┬────────────────────────────────┐   │
+│  │ Tamper                     │ Signature still valid?         │   │
+│  ├────────────────────────────┼────────────────────────────────┤   │
+│  │ Remove fee instruction     │ ❌ INVALID                     │   │
+│  │ Change fee amount          │ ❌ INVALID                     │   │
+│  │ Change fee recipient       │ ❌ INVALID                     │   │
+│  │ Reorder instructions       │ ❌ INVALID                     │   │
+│  │ Swap recent blockhash      │ ❌ INVALID                     │   │
+│  │ (control) untouched        │ ✅ VALID                       │   │
+│  └────────────────────────────┴────────────────────────────────┘   │
+│                                                                    │
+│  MERKLE PROOF DEMO (Section 4)                                     │
+│  • Edit a list of N leaves (free-form text, one per line).         │
+│  • Page builds a SHA-256 Merkle tree using src/lib/merkle.ts       │
+│    (domain-separated leaf/node hashing → second-preimage safe).    │
+│  • Pick any leaf → see its ⌈log₂ N⌉ inclusion proof rendered as    │
+│    {step, position, sibling-hash} rows.                            │
+│  • Tamper input → reuse the same proof against the modified leaf   │
+│    → verifier rejects ("root no longer matches").                  │
+│  • Same primitive Solana validators use to commit to per-slot      │
+│    account state changes via the bank hash.                        │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+## 16.2 `/security` — Six Attacks, All Run Live
+
+```
+┌─────────────────────────────────┬────────────────────────────────┐
+│ Attack                          │ Test mechanism                 │
+├─────────────────────────────────┼────────────────────────────────┤
+│ Replay Attack                   │ Show recent-blockhash window;  │
+│                                 │ simulate slot drift past 150   │
+├─────────────────────────────────┼────────────────────────────────┤
+│ Signature Forgery               │ Verify with WRONG pubkey → ❌  │
+├─────────────────────────────────┼────────────────────────────────┤
+│ Fee Bypass (remove instr)       │ Remove instr[0], reverify → ❌ │
+├─────────────────────────────────┼────────────────────────────────┤
+│ Fee Amount Manipulation         │ Zero-out lamports, reverify    │
+├─────────────────────────────────┼────────────────────────────────┤
+│ Instruction Reordering          │ Swap instr[0]/instr[1]         │
+├─────────────────────────────────┼────────────────────────────────┤
+│ MITM Recipient Swap             │ Replace toPubkey, reverify     │
+└─────────────────────────────────┴────────────────────────────────┘
+
+Each card emits PASS/FAIL plus the original-vs-tampered byte diff.
+```
+
+## 16.3 `/benchmarks` — Quantitative Proof
+
+```
+┌─────────────────────────────┬──────────────────────────────────┐
+│ Metric                      │ What we measure                  │
+├─────────────────────────────┼──────────────────────────────────┤
+│ Transaction size            │ tx.serialize().length            │
+│                             │ (no-fee vs fee-bundled)          │
+├─────────────────────────────┼──────────────────────────────────┤
+│ Signing latency             │ performance.now() × 100 iters,   │
+│                             │ avg / min / max                  │
+├─────────────────────────────┼──────────────────────────────────┤
+│ Compute units               │ ~150 CU per System.transfer      │
+│                             │ vs 200,000 CU budget = ~0.075%   │
+├─────────────────────────────┼──────────────────────────────────┤
+│ Construction time           │ end-to-end build time delta      │
+└─────────────────────────────┴──────────────────────────────────┘
+
+Take-away (rendered as a summary card):
+  "Total overhead: ~64 bytes, sub-millisecond latency, ≤ 1% of CU
+   budget — atomic fee enforcement is essentially free."
+```
+
+## 16.4 `/explorer` & `/receipt/[signature]` — On-Chain Truth
+
+```
+USER INPUT (signature)
+        │
+        ▼
+   getParsedTransaction(sig, { maxSupportedTransactionVersion: 0 })
+        │
+        ├─▶ Status, slot, blockhash, fee paid (lamports)
+        ├─▶ Instructions[]
+        │     └─▶ Identify SystemProgram.transfer to BUILDER_AUTHORITY
+        │     └─▶ Identify Drift program instruction
+        │     └─▶ ✅ "Both present in same tx" → ATOMIC
+        ├─▶ Solscan deep-link (?cluster=devnet on devnet)
+        └─▶ Cross-reference with /api/fee + /api/trade rows for context
+
+/receipt/[signature] adds: copy-buttons, beautiful card layout,
+short-sig display, and a permanent shareable URL per trade.
+```
+
+## 16.5 Why This Layer Matters
+
+It converts every claim in the report from prose into something a
+reviewer can click and verify *during the presentation*:
+
+| Claim                                            | Where to show it   |
+| ------------------------------------------------ | ------------------ |
+| "We use Ed25519 + SHA-256."                      | `/verify` step 5–6 |
+| "Tampering invalidates the signature."           | `/verify` step 9   |
+| "Merkle proofs verify membership in O(log N)."   | `/verify` Section 4|
+| "Solana programs compose via CPI."               | `/explorer` (paste any sig) |
+| "Six classes of attacks are blocked."            | `/security`        |
+| "Overhead is negligible."                        | `/benchmarks`      |
+| "Every fee is independently verifiable on-chain."| `/explorer`        |
+| "Each trade has a shareable receipt."            | `/receipt/<sig>`   |
+| "Concepts map to the BITS F452 syllabus."        | `/blockchain`      |
 
 ---
 

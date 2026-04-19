@@ -1,0 +1,278 @@
+\documentclass[12pt,a4paper]{article}
+
+% ========================
+% Packagesa
+% ========================
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{longtable}
+
+\geometry{margin=1in}
+\setlength{\parskip}{6pt}
+\setlength{\parindent}{0pt}
+
+% Header/Footer
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Mid-Sem Report}
+\fancyhead[R]{March, 2026}
+\fancyfoot[C]{\thepage}
+
+% ========================
+% Title Page
+% ========================
+\begin{document}
+
+\begin{titlepage}
+\centering
+
+{\Huge \textbf{\underline{Mid-Sem Report}}}\\[6em]
+
+{\Huge \textbf{Atomic Fee Enforcement}}\\[2em]
+{\Large \textbf{in Decentralized Perpetual Trading}}\\
+\vspace{14px}
+{\Large \textbf{A Transaction-Layer Approach Using Elliptic Curve Cryptography}}\\[5em]
+
+\textbf{Course:} BLOCKCHAIN TECHNOLOGY (BITS F452) \\[0.5em]
+\textbf{Instructor In-Charge:} Prof. Sanjay K. Sahay\\[5em]
+
+% --- Submitted By Table ---
+\begin{center}
+\setlength{\extrarowheight}{3pt}
+{
+\begin{tabular}{>{\centering\arraybackslash}p{0.55\textwidth} >{\centering\arraybackslash}p{0.35\textwidth}}
+\textbf{Name of the Student} & \textbf{ID.No.} \\
+Viyom Gupta & 2023A7PS0413G \\
+\end{tabular}
+}
+\end{center}
+
+\vspace{5em}
+
+\includegraphics[width=0.3\textwidth]{bits.png}\\[2.5em]
+
+\textbf{BIRLA INSTITUTE OF TECHNOLOGY \& SCIENCE, PILANI}\\[1em]
+(March, 2026)
+
+\end{titlepage}
+
+% ========================
+% Table of Contents
+% ========================
+\tableofcontents
+\newpage
+
+% ============================================================
+% =============== MAIN REPORT CONTENT =========================
+% ============================================================
+
+% ---------- 1. Introduction ----------
+\section{Introduction}
+
+\subsection{Background}
+
+Decentralized Exchanges (DEXs) on the Solana blockchain have become critical DeFi infrastructure, processing billions in trading volume. Solana's architecture --- sub-second block times, low transaction fees (\textasciitilde\$0.00025), and high throughput --- makes it ideal for performance-sensitive trading applications. However, a fundamental vulnerability exists in how these platforms collect fees.
+
+\subsection{Problem Statement}
+
+Modern DEXs separate trade execution and fee collection into independent blockchain transactions. This separation creates several critical issues:
+
+\begin{itemize}
+    \item \textbf{Fee Evasion}: Users can execute trades while bypassing fee payment transactions.
+    \item \textbf{Partial Execution}: Network congestion can cause fee transactions to fail while trades succeed.
+    \item \textbf{Race Conditions}: Malicious actors can exploit timing gaps between fee and trade transactions.
+\end{itemize}
+
+This breaks the principle of atomic execution --- that related operations should succeed or fail together --- undermining DEX sustainability and trustless execution.
+
+\subsection{Proposed Solution}
+
+\textbf{Atomic Fee Enforcement} binds fee payment and trade execution into a single Solana transaction. Solana's native transaction model supports multiple instructions with atomic guarantees --- all succeed or all fail. By prepending a fee transfer instruction to the trade transaction and signing both under a single Ed25519 signature, we achieve cryptographic indivisibility.
+
+\subsection{Objectives}
+
+\begin{enumerate}
+    \item \textbf{Atomic Fee Bundling} --- Bind fee and trade into a single all-or-nothing transaction.
+    \item \textbf{Ed25519 Signing Integration} --- Single signature authorizes both operations.
+    \item \textbf{SHA-256 Integrity} --- Prevent post-signature tampering of fee/trade parameters.
+    \item \textbf{Trade Primitive Support} --- Cover market, limit, and stop-loss order types.
+    \item \textbf{Solana Versioned Tx Architecture} --- Leverage V0 transactions and Address Lookup Tables.
+    \item \textbf{Attack Resistance} --- Validate against replay, forgery, and bypass attacks.
+\end{enumerate}
+
+\subsection{Technology Stack}
+
+\begin{center}
+\begin{tabular}{l l}
+\toprule
+\textbf{Component} & \textbf{Technology} \\
+\midrule
+Frontend & Next.js 15, React 19, TypeScript \\
+Blockchain & Solana web3.js 1.98 \\
+DeFi Protocol & Drift SDK 2.143 \\
+Wallet & Phantom (Solana Wallet Adapter) \\
+State Management & Zustand 5 \\
+Database & MongoDB (Mongoose 8) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ---------- 2. Literature Survey ----------
+\section{Literature Survey}
+
+\subsection{Solana Transaction Model}
+
+Solana transactions contain a message with one or more instructions that execute atomically --- if any instruction fails, the entire transaction reverts. Versioned Transactions (V0) support Address Lookup Tables for more complex instruction sets. Transactions are signed using Ed25519 over the serialized message, ensuring all instructions are covered by a single cryptographic proof.
+
+\subsection{Cryptographic Foundations}
+
+\textbf{Ed25519} (RFC 8032) provides 128-bit security, deterministic signing, and 64-byte signatures. A single Ed25519 signature over the transaction message simultaneously authorizes all instructions within the transaction --- this is the key property enabling atomic fee enforcement.
+
+\textbf{SHA-256} (FIPS 180-4) is used in Solana's signing pipeline to hash the transaction message before signing. Any modification to any instruction changes the hash and invalidates the signature, providing tamper detection.
+
+\subsection{Drift Protocol}
+
+Drift Protocol is Solana's largest decentralized perpetual futures exchange, supporting 50+ markets with up to 20x leverage. The AuthorityDrift SDK provides transaction construction methods (\texttt{sendTransaction}, \texttt{openPerpOrder}) that serve as natural injection points for fee instruction prepending.
+
+\subsection{Related Work}
+
+\begin{center}
+\begin{tabular}{l l l}
+\toprule
+\textbf{Platform} & \textbf{Fee Mechanism} & \textbf{Atomicity} \\
+\midrule
+Jupiter & Fees inside swap program & Program-level \\
+Raydium & LP fees in AMM math & Program-level \\
+Drift & Builder fees via RevenueShare & Protocol-level \\
+\textbf{Our Approach} & \textbf{Instruction prepending} & \textbf{Transaction-level} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Our approach operates at the application layer without requiring on-chain program modifications, making it portable across any DEX protocol.
+
+% ---------- 3. Plan of Action ----------
+\section{Plan of Action}
+
+\subsection{Three-Phase Methodology}
+
+\begin{enumerate}
+    \item \textbf{Phase 1: Research \& Design} (Jan) --- Study Solana transaction model, Drift SDK, and signing workflows. Design fee interception architecture.
+    \item \textbf{Phase 2: Development} (Feb--Mar) --- Implement wallet integration, transaction construction, fee computation, frontend interface, and devnet testing.
+    \item \textbf{Phase 3: Validation} (Mar--May) --- Complete atomic binding, attack resistance testing, performance benchmarks, and SHA-256 integrity verification.
+\end{enumerate}
+
+\subsection{Project Timeline}
+
+\begin{center}
+\begin{tabular}{l l l l}
+\toprule
+\textbf{Phase} & \textbf{Period} & \textbf{Activities} & \textbf{Status} \\
+\midrule
+Research \& Design & Jan W3 & Solana tx model, architecture & Completed \\
+Wallet \& Devnet & Feb W1 & Phantom, devnet setup & Completed \\
+Tx Construction & Feb W2 & Multi-instruction tx building & Completed \\
+Fee Computation & Feb W4 & Fee calculator, oracle prices & Completed \\
+Frontend & Mar W1 & Trading UI, charts, orderbook & Completed \\
+Atomic Binding & -- & Fee + trade bundling & In Progress \\
+Attack Validation & -- & Adversarial testing & Planned \\
+Benchmarks & -- & Overhead measurement & Planned \\
+\bottomrule
+\end{tabular}
+\end{center}
+% ---------- 4. Work Completed ----------
+\section{Work Completed Till Mar. 2026}
+
+\subsection{Wallet Interaction Layer}
+
+Built using \texttt{@solana/wallet-adapter-react} with Phantom as the primary wallet. Supports wallet connection, public key extraction, and Ed25519 transaction signing --- the cryptographic foundation for atomic authorization. Wallet sessions persist across page reloads with auto-reconnect.
+
+\textbf{Verified}: Phantom connected on Solana devnet, balance updates confirmed after SOL airdrop via faucet.
+
+\subsection{Blockchain Interaction Layer}
+
+Dual-environment configuration supporting seamless switching between Solana devnet and mainnet-beta, with environment preference persisted via Zustand store. SOL airdrop via Solana faucet enables risk-free testing. Real-time oracle price subscriptions from Pyth and Switchboard provide live market data. All transactions verified on Solscan devnet explorer with full instruction details visible.
+
+\textbf{Verified}: Transactions submitted, confirmed, and inspected on Solscan showing instruction details.
+
+\subsection{Transaction Construction Layer}
+
+Supports building multi-instruction transactions for legacy \texttt{Transaction} \& \texttt{VersionedTransaction} (V0) types. Handles Address Lookup Table resolution, transaction message decompilation and recompilation via \texttt{TransactionMessage.decompile()} and \texttt{compileToV0Message()}, and \texttt{SystemProgram.transfer} instruction creation for fee payments. This is the core capability required for prepending fee instructions to trade transactions.
+
+\textbf{Verified}: Multi-instruction transactions successfully signed, submitted, and confirmed on devnet.
+
+\subsection{Fee Computation Module}
+
+Calculates platform fees at 5 basis points (0.05\%) of order size. For base assets (e.g., SOL), fees are computed directly in lamports. For quote assets (e.g., USDC), fees are converted to SOL using live oracle prices from Pyth/Switchboard. Outputs a \texttt{SystemProgram.transfer} instruction with a configurable recipient address via the \texttt{NEXT\_PUBLIC\_BUILDER\_AUTHORITY} environment variable.
+
+\textbf{Verified}: Fee calculations validated for various order sizes across both asset types.
+
+\subsection{Frontend Interface}
+
+Comprehensive trading interface built with Next.js 15 and React 19:
+
+\begin{itemize}
+    \item 40+ perpetual markets with searchable selector and market icons
+    \item Candlestick charts with real-time WebSocket price streaming
+    \item Trade form supporting 5 order types: market, limit, take profit, stop loss, oracle limit
+    \item Orderbook display, positions table, and open orders table
+    \item Leverage slider from 1x to 20x with dynamic position sizing
+\end{itemize}
+
+Five Zustand stores provide reactive state management for Drift client, oracle prices, mark prices, user accounts, and user identity.
+
+\textbf{Verified}: Full UI accessible at \texttt{localhost:3000/perps} with real-time price updates.
+
+
+
+% ---------- 5. End Semester Deliverables ----------
+\section{End Semester Deliverables (Work Yet to be Completed)}
+
+\begin{center}
+\begin{tabular}{l p{7cm} l}
+\toprule
+\textbf{Task} & \textbf{Description} & \textbf{Timeline} \\
+\midrule
+Atomic Binding & Complete cryptographic binding of fee + trade into a single signed transaction & Mar \\
+SHA-256 Verification & Validate that post-signature modifications invalidate the transaction & Apr \\
+Attack Testing & Replay attacks, signature forgery, fee bypass, instruction reordering & Apr \\
+Benchmarks & Transaction size overhead, signing latency, compute unit consumption & Apr \\
+Revenue Share & 50/50 platform-creator fee split with claim workflow & May \\
+Data Persistence & MongoDB integration for transaction audit trail (Fee and Trade schemas) & May \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Data Persistence Layer}
+
+MongoDB integration with Mongoose ODM will provide a transaction audit trail. Two schemas to be implemented:
+
+\begin{itemize}
+    \item \textbf{Fee Schema}: userId, experienceId, feeAmount, feeInLamports, orderSize, assetType, timestamp
+    \item \textbf{Trade Schema}: userId, marketIndex, orderType, direction, size, subAccountId, txSignature, timestamp
+\end{itemize}
+
+API endpoints (\texttt{POST/GET /api/fee}, \texttt{POST/GET /api/trade}) will support recording and querying transaction history with pagination.
+
+% ---------- 6. References ----------
+\section{References}
+
+\begin{enumerate}
+    \item Y. Yakovenko, ``Solana: A New Architecture for a High Performance Blockchain,'' Solana Labs Whitepaper, 2018.
+    \item Solana Foundation, ``Transaction Processing,'' \textit{Solana Documentation}, 2024. Available: \url{https://docs.solana.com/developing/programming-model/transactions}
+    \item S. Josefsson and I. Liusvaara, ``Edwards-Curve Digital Signature Algorithm (EdDSA),'' RFC 8032, IETF, 2017.
+    \item National Institute of Standards and Technology, ``Secure Hash Standard (SHS),'' FIPS 180-4, 2015.
+    \item Drift Labs, ``Drift Protocol Documentation,'' 2024. Available: \url{https://docs.drift.trade/}
+    \item Drift Labs, ``Drift Protocol v2 --- GitHub Repository,'' 2024. Available: \url{https://github.com/drift-labs/protocol-v2}
+    \item A. J. Menezes, P. C. van Oorschot, and S. A. Vanstone, \textit{Handbook of Applied Cryptography}, CRC Press, 1996.
+    \item D. Boneh and V. Shoup, \textit{A Graduate Course in Applied Cryptography}, 2020. Available: \url{https://toc.cryptobook.us/}
+    \item Phantom, ``Developer Documentation,'' 2024. Available: \url{https://docs.phantom.app/}
+    \item Solana Foundation, ``Solana Wallet Adapter,'' GitHub, 2024. Available: \url{https://github.com/solana-labs/wallet-adapter}
+\end{enumerate}
+
+\end{document}

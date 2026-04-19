@@ -1,5 +1,18 @@
+/**
+ * @module schemas/FeeSchema
+ *
+ * MongoDB schema for the OFF-CHAIN mirror of platform trading-fee events.
+ *
+ * The on-chain `SystemProgram.transfer` (signed atomically with the trade)
+ * is the cryptographic source of truth — this collection only exists to power
+ * the admin & creator dashboards (aggregations, time-series, claim flows).
+ *
+ * `txSignature` is the join key back to the on-chain record; clicking it in
+ * the UI opens Solscan so users can independently verify the recorded amount.
+ */
 import mongoose from 'mongoose';
 
+/** Off-chain mirror of a single fee transfer. */
 export interface IFee {
   userId: string;
   experienceId: string;

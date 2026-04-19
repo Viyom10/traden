@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import dbConnect from '@/lib/db';
+import dbConnect, { isMongoConfigured } from '@/lib/db';
 import Signal from '@/schemas/SignalSchema';
 
 export async function POST(request: NextRequest) {
   try {
+    if (!isMongoConfigured()) {
+      return NextResponse.json(
+        { success: true, mongoConfigured: false, message: 'MONGODB_URI not set — signal not persisted' },
+        { status: 200 }
+      );
+    }
     await dbConnect();
 
     const body = await request.json();
@@ -95,14 +101,21 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const searchParams = request.nextUrl.searchParams;
+    const limit = parseInt(searchParams.get('limit') || '100', 10);
+    const skip = parseInt(searchParams.get('skip') || '0', 10);
+
+    if (!isMongoConfigured()) {
+      return NextResponse.json(
+        { success: true, mongoConfigured: false, signals: [], totalCount: 0, limit, skip },
+        { status: 200 }
+      );
+    }
     await dbConnect();
 
-    const searchParams = request.nextUrl.searchParams;
     const experienceId = searchParams.get('experienceId');
     const creatorId = searchParams.get('creatorId');
     const includeExpired = searchParams.get('includeExpired') === 'true';
-    const limit = parseInt(searchParams.get('limit') || '100', 10);
-    const skip = parseInt(searchParams.get('skip') || '0', 10);
 
     // Build query
     const query: {
@@ -151,6 +164,12 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
+    if (!isMongoConfigured()) {
+      return NextResponse.json(
+        { success: true, mongoConfigured: false, message: 'MONGODB_URI not set — signal not updated' },
+        { status: 200 }
+      );
+    }
     await dbConnect();
 
     const body = await request.json();
@@ -195,6 +214,12 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    if (!isMongoConfigured()) {
+      return NextResponse.json(
+        { success: true, mongoConfigured: false, message: 'MONGODB_URI not set — signal not deleted' },
+        { status: 200 }
+      );
+    }
     await dbConnect();
 
     const searchParams = request.nextUrl.searchParams;

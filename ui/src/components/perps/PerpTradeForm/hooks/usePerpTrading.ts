@@ -160,7 +160,7 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
       }
     } catch (error) {
       console.error("Error recording trade:", error);
-      // Don't throw - we don't want trade recording to block the user experience
+      // Don't throw - trade recording should never block the user experience
     }
   };
 
@@ -203,7 +203,7 @@ export const usePerpTrading = ({ perpMarketConfigs, selectedMarketIndex }: UsePe
           }
           
           // Quote amount / Current price = Base amount
-          // To maintain precision, we'll use BN math directly
+          // To maintain precision, use BN math directly
           const currentPriceBigNum = BigNum.from(currentPrice, PRICE_PRECISION_EXP);
           
           // Convert both to their raw BN values and do the division with proper scaling

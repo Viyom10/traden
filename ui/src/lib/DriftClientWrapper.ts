@@ -1,3 +1,67 @@
+/**
+ * @module lib/DriftClientWrapper
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  ATOMIC FEE ENFORCEMENT VIA TRANSACTION INTERCEPTION
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * This module implements the core contribution of the project: atomic fee
+ * enforcement at the transaction layer using Solana's cryptographic
+ * primitives. The interceptor wraps the Drift SDK's `sendTransaction` and
+ * `openPerpOrder` so that every non-Swift perpetual order acquires a platform
+ * fee instruction *inside the same Solana transaction* as the trade.
+ *
+ * ## Blockchain concepts used (concept → code)
+ *
+ * ### 1. Ed25519 Digital Signatures (RFC 8032)
+ * Solana transactions are signed with Ed25519, providing:
+ *   • 128-bit security level
+ *   • Deterministic signatures (no nonce-reuse class of bug)
+ *   • 64-byte compact signatures
+ *
+ * Key property: a SINGLE Ed25519 signature covers the ENTIRE compiled
+ * transaction message — every account key, every instruction byte. Any
+ * mutation to that message invalidates the signature.
+ *
+ * ### 2. SHA-256 Transaction Hashing (FIPS 180-4)
+ * The validator computes SHA-256 over the serialized message and verifies the
+ * Ed25519 signature against that digest. Avalanche behavior of SHA-256 means
+ * any 1-bit change to instructions, account keys, or recent blockhash flips
+ * ≈ 50% of digest bits, so tampering is statistically certain to be caught.
+ *
+ * ### 3. Atomic transaction execution
+ * Solana commits all instructions in a transaction or none. Combined with
+ * the single-signature property this gives me three guarantees that hold
+ * jointly:
+ *   • The fee CANNOT be separated from the trade.
+ *   • The fee amount CANNOT be modified post-signing.
+ *   • The fee recipient CANNOT be changed post-signing.
+ *
+ * ### 4. Versioned (V0) Transactions + Address Lookup Tables
+ * V0 messages reference accounts via ALTs (1 byte vs 32 bytes per ref),
+ * making it feasible to fit Drift's complex DeFi flow into one transaction.
+ * The interceptor must resolve every ALT before decompiling, then re-pass
+ * the same ALTs back when recompiling — otherwise the message is invalid.
+ *
+ * ## Architecture
+ *  1. User submits an order via `drift.openPerpOrder(params)`.
+ *  2. I intercept and stash `pendingPerpOrderFee = { orderSize, assetType }`.
+ *  3. Drift internally builds a `Transaction` or `VersionedTransaction` and
+ *     calls `driftClient.sendTransaction(tx)`.
+ *  4. My override decompiles the message, prepends a
+ *     `SystemProgram.transfer` fee instruction, recompiles, and forwards.
+ *  5. The wallet signs the COMPLETE composed transaction with ONE Ed25519
+ *     signature.
+ *  6. If anything fails — fee, trade, or signature verification — the entire
+ *     transaction reverts and no state changes are committed.
+ *
+ * ## Important caveat: Swift orders
+ * Swift orders use Drift's off-chain matching path and do not flow through
+ * `driftClient.sendTransaction`, so the interceptor cannot apply fees to
+ * them. The UI surfaces a "disable Swift" toggle for users who want the
+ * atomic-fee behavior.
+ */
+
 import { AuthorityDrift, MarketId } from "@drift-labs/common";
 import { BigNum, TxSigAndSlot, PRICE_PRECISION_EXP, BN } from "@drift-labs/sdk";
 import {
@@ -24,7 +88,12 @@ export interface TradingFeeInterceptorConfig {
 }
 
 /**
- * Helper function to record fee to database
+ * Best-effort write of a fee row to MongoDB so the admin & creator dashboards
+ * can show off-chain summaries. The write is intentionally fire-and-forget
+ * (non-blocking) — if the network or DB is down, the trade still happens and
+ * the on-chain record (the actual source of truth) remains intact.
+ *
+ * @internal
  */
 async function recordFeeToDatabase(
   orderSize: BigNum,
@@ -67,8 +136,22 @@ async function recordFeeToDatabase(
 }
 
 /**
- * Installs a transaction interceptor on the DriftClient to add trading fees
- * to perp order transactions
+ * Installs a transaction interceptor on the supplied AuthorityDrift instance.
+ *
+ * The interceptor uses two layered overrides:
+ *   1. `drift.openPerpOrder` — captures the size + asset type of the next
+ *      order so the fee transfer instruction can use the right amount.
+ *   2. `drift.driftClient.sendTransaction` — intercepts the outgoing Solana
+ *      transaction, decompiles its V0 message, prepends the fee instruction,
+ *      and recompiles into a new `VersionedTransaction`. The wallet signs
+ *      this composite transaction once, and the Ed25519 signature
+ *      cryptographically binds the fee to the trade.
+ *
+ * Idempotency: this should be invoked exactly once per Drift instance; doing
+ * it twice would chain two prepends and double-charge the user.
+ *
+ * @param drift  the AuthorityDrift instance to wrap
+ * @param config which operations to enforce fees on (default: perp orders only)
  */
 export function installTradingFeeInterceptor(
   drift: AuthorityDrift,
@@ -149,7 +232,26 @@ export function installTradingFeeInterceptor(
     };
   }
   
-  // Override driftClient.sendTransaction to intercept and modify transactions
+  /**
+   * sendTransaction override — the heart of atomic fee enforcement.
+   *
+   * For each transaction submitted by the Drift SDK I:
+   *   1. Look up the pending perp order context (orderSize, assetType).
+   *   2. Compute the fee in lamports (5 bps; quote-asset fees converted to
+   *      SOL via the live SOL oracle price).
+   *   3. Branch by transaction kind:
+   *        • VersionedTransaction (V0): resolve ALTs, decompile, prepend the
+   *          fee instruction, recompile to a new V0 message, wrap as a new
+   *          VersionedTransaction.
+   *        • Legacy Transaction: prepend the fee instruction in-place.
+   *   4. Forward to the original sendTransaction, which will solicit the
+   *      wallet signature over the *full* (fee + trade) message.
+   *   5. Best-effort persist a fee row to MongoDB for the dashboards.
+   *
+   * Failure semantics: if any step throws, I DO NOT fall through to the
+   * naked transaction — the order is cancelled. This preserves the contract
+   * "either you pay the fee or you don't trade".
+   */
   driftClient.sendTransaction = async function(
     tx: Transaction | VersionedTransaction,
     additionalSigners?: Signer[],
@@ -188,7 +290,7 @@ export function installTradingFeeInterceptor(
           // For base assets (SOL), feeAmount is already in base precision (lamports)
           feeInLamports = feeAmount;
         } else {
-          // For quote assets (USDC), we need to convert the USDC fee to SOL using oracle price
+          // For quote assets (USDC), convert the USDC fee to SOL using oracle price
           // Get the SOL oracle price (market index 1 for SOL spot market)
           const solMarketId = MarketId.createSpotMarket(1); // SOL is typically market index 1
           const solOraclePrice = drift.oraclePriceCache[solMarketId.key]?.price;
@@ -201,10 +303,10 @@ export function installTradingFeeInterceptor(
             // Convert USDC fee to SOL fee using oracle price
             // feeAmount is in USDC (1e6 precision)
             // solOraclePrice is in PRICE_PRECISION (1e6)
-            // We want result in lamports (1e9)
+            // Want result in lamports (1e9)
             
             // Formula: (feeInUSDC * 1e9) / oraclePrice
-            // This gives us SOL amount in lamports
+            // This gives the SOL amount in lamports
             const LAMPORTS_PER_SOL = new BN(1_000_000_000);
             feeInLamports = feeAmount.mul(LAMPORTS_PER_SOL).div(solOraclePrice);
             

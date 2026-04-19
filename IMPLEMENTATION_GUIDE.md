@@ -29,17 +29,17 @@ A **decentralized perpetual futures trading platform** built on **Solana** that 
 
 ### Course Info
 - **Course**: BITS F452 — Blockchain Technology, BITS Pilani Goa
-- **Team**: Anshul Shah (2022B3A70406G) & Viyom Gupta (2023A7PS0413G)
+- **Author**: Viyom Gupta (2023A7PS0413G)
 - **Evaluation**: Final Report & Presentation = 25% weightage
 - **Goal**: Depict as many blockchain/cryptographic concepts from the course as possible
 
 ### Course Syllabus Topics That Must Be Depicted
-1. **Cryptography** (Lectures 3-8): Symmetric/Asymmetric crypto, Hash (SHA-256), MAC, Merkle Tree, RSA, ECC (Ed25519), Digital Signatures, Certificates, Public Key Authentication
-2. **Bitcoin Architecture** (Lectures 9-14): Wallets, Key Derivation, Addresses, Transactions (Outputs, Inputs, Verification, Fees, Priority), Mining, Consensus, Block Structure
-3. **Ethereum/Solana** (Lectures 16-19): EVM/SVM, Clients, Key Pairs, Addresses, Wallets, Transactions, Dev Tools
-4. **Smart Contracts** (Lectures 20-21): Types, Confidentiality
-5. **Security** (Lectures 22-24): Replay, Routing, Eclipse, Sybil, Selfish Mining, Majority Attack, Transaction Malleability, Identity Management
-6. **Limitations** (Lectures 25-27): Scalability, Privacy, Speed, Complexity, Cost, Storage, Energy
+1. **Cryptography**: Symmetric/Asymmetric crypto, Hash (SHA-256), MAC, Merkle Tree, RSA, ECC (Ed25519), Digital Signatures, Certificates, Public Key Authentication
+2. **Bitcoin Architecture**: Wallets, Key Derivation, Addresses, Transactions (Outputs, Inputs, Verification, Fees, Priority), Mining, Consensus, Block Structure
+3. **Ethereum/Solana**: EVM/SVM, Clients, Key Pairs, Addresses, Wallets, Transactions, Dev Tools
+4. **Smart Contracts**: Types, Confidentiality
+5. **Security**: Replay, Routing, Eclipse, Sybil, Selfish Mining, Majority Attack, Transaction Malleability, Identity Management
+6. **Limitations**: Scalability, Privacy, Speed, Complexity, Cost, Storage, Energy
 
 ### What's Already Built (DO NOT MODIFY these unless required)
 - ✅ Full perpetual trading UI (40+ markets, candlestick charts, orderbook, 5 order types)
@@ -342,7 +342,7 @@ Create a new page at `/blockchain` that serves as an **interactive educational r
      ```
      Instructions → TransactionMessage → SHA-256(message) → Ed25519.sign(hash, privKey) → Signature
      ```
-   - Use a comparison table for "Our Approach vs Other DEXs" (Jupiter, Raydium, Drift native)
+   - Use a comparison table for "My Approach vs Other DEXs" (Jupiter, Raydium, Drift native)
    - Use color-coded cards: 🟢 = fully implemented, 🟡 = partially, 🔴 = theoretical only
 
 4. **Component structure**: Use `Card` components with expandable sections (use React `useState` for toggling). Use `lucide-react` icons. Use tables for comparisons.
@@ -401,7 +401,7 @@ Create a new page at `/verify` that provides **live, interactive demonstrations*
 4. Include explanatory text for each step referencing the course concepts.
 
 #### Section 2: Atomicity Proof
-1. Show that in our system, `fee instruction + trade instruction` are in the SAME transaction message
+1. Show that in my system, `fee instruction + trade instruction` are in the SAME transaction message
 2. Show that ONE signature covers BOTH
 3. Demonstrate: "If you remove the fee instruction, the signature no longer matches"
 4. Demonstrate: "If you change the fee recipient, the signature no longer matches"
@@ -717,7 +717,7 @@ Add to the top of file:
  * 
  * ATOMIC FEE ENFORCEMENT VIA TRANSACTION INTERCEPTION
  * 
- * This module implements the core contribution of our project: atomic fee enforcement
+ * This module implements the core contribution of my project: atomic fee enforcement
  * at the transaction layer using Solana's cryptographic primitives.
  * 
  * ## Blockchain Concepts Used:
@@ -747,15 +747,15 @@ Add to the top of file:
  * - Fee recipient CANNOT be changed post-signing
  * 
  * ### 4. Versioned Transactions (V0)
- * We support Solana's V0 transaction format with Address Lookup Tables (ALTs),
+ * I support Solana's V0 transaction format with Address Lookup Tables (ALTs),
  * which compress account references and allow more instructions per transaction.
  * This is essential for Drift's complex DeFi operations.
  * 
  * ### Architecture:
  * 1. User places order via openPerpOrder()
- * 2. We intercept sendTransaction()
- * 3. We prepend a SystemProgram.transfer fee instruction
- * 4. We recompile the transaction message
+ * 2. I intercept sendTransaction()
+ * 3. I prepend a SystemProgram.transfer fee instruction
+ * 4. I recompile the transaction message
  * 5. User signs the COMPLETE transaction (fee + trade) with ONE Ed25519 signature
  * 6. If fee transfer fails → entire transaction reverts → no trade executed
  */

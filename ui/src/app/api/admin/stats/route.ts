@@ -1,9 +1,30 @@
 import { NextResponse } from 'next/server';
-import dbConnect from '@/lib/db';
+import dbConnect, { isMongoConfigured } from '@/lib/db';
 import Fee from '@/schemas/FeeSchema';
+
+const emptyStats = () => ({
+  totalInLamports: '0',
+  totalInSol: 0,
+  platformShareInLamports: '0',
+  platformShareInSol: 0,
+  transactionCount: 0,
+});
 
 export async function GET() {
   try {
+    if (!isMongoConfigured()) {
+      return NextResponse.json(
+        {
+          success: true,
+          mongoConfigured: false,
+          total: emptyStats(),
+          today: emptyStats(),
+          week: emptyStats(),
+          month: emptyStats(),
+        },
+        { status: 200 }
+      );
+    }
     await dbConnect();
 
     const now = new Date();

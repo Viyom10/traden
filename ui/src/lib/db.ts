@@ -2,23 +2,20 @@ import mongoose from 'mongoose';
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
-if (!MONGODB_URI) {
-  throw new Error(
-    'Please define the MONGODB_URI environment variable inside .env file'
-  );
-}
-
 /**
- * Global is used here to maintain a cached connection across hot reloads
- * in development. This prevents connections growing exponentially
- * during API Route usage.
+ * True when MONGODB_URI is set in the environment.
+ * API routes use this to short-circuit and return an empty payload
+ * (instead of crashing) when the optional off-chain audit DB isn't configured.
  */
+export const isMongoConfigured = (): boolean => Boolean(MONGODB_URI);
+
 interface MongooseCache {
   conn: typeof mongoose | null;
   promise: Promise<typeof mongoose> | null;
 }
 
 declare global {
+  // eslint-disable-next-line no-var
   var mongoose: MongooseCache | undefined;
 }
 
@@ -29,6 +26,14 @@ if (!global.mongoose) {
 }
 
 async function dbConnect(): Promise<typeof mongoose> {
+  if (!MONGODB_URI) {
+    // Lazy throw so simply importing this module never crashes the route.
+    throw new Error(
+      'MONGODB_URI is not set — off-chain audit storage is disabled. ' +
+        'Set MONGODB_URI in ui/.env.local to enable persistence.'
+    );
+  }
+
   if (cached.conn) {
     return cached.conn;
   }
@@ -38,9 +43,9 @@ async function dbConnect(): Promise<typeof mongoose> {
       bufferCommands: false,
     };
 
-    cached.promise = mongoose.connect(MONGODB_URI!, opts).then((mongooseInstance: typeof mongoose) => {
-      return mongooseInstance;
-    });
+    cached.promise = mongoose
+      .connect(MONGODB_URI, opts)
+      .then((mongooseInstance: typeof mongoose) => mongooseInstance);
   }
 
   try {
