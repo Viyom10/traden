@@ -108,14 +108,14 @@ If `NEXT_PUBLIC_BUILDER_AUTHORITY` is missing the interceptor logs a warning and
 | `/user` | Drift sub-account create/delete, balance, revenue share | end-user |
 | `/admin` | Fee statistics, claim approvals, payment history | wallet-gated admin |
 | `/creator` | Creator earnings, claim history, fee history | wallet-gated creator |
-| **`/blockchain`** | Interactive map of every syllabus crypto/blockchain concept → file in this repo | demo / evaluator |
-| **`/verify`** | **Live SHA-256 + Ed25519 demo** — step-through wizard, multi-tamper matrix, avalanche effect | demo / evaluator |
-| **`/security`** | Six attacks (Replay, Forgery, Fee-Bypass, Fee-Tamper, Reorder, MITM) run as on-page tests with PASS/FAIL | demo / evaluator |
+| **`/blockchain`** | Concept-to-source map of every primitive used (Ed25519, SHA-256, Merkle, atomic execution, CPI, oracles) → file in this repo | demo / evaluator |
+| **`/verify`** | **Four in-browser cryptographic demos** — 10-step Ed25519+SHA-256 wizard, hash properties, multi-tamper matrix, **Merkle proof builder + tamper test** | demo / evaluator |
+| **`/security`** | Six attacks (Replay, Forgery, Fee-Strip, Fee-Tamper, Reorder, MITM recipient swap) run as on-page tests with PASS/FAIL and "Run all attack tests" button | demo / evaluator |
 | **`/benchmarks`** | Tx-size overhead, sign latency (100-iter), CU estimate, construction time | demo / evaluator |
-| **`/explorer`** | Paste any signature → on-chain verification that fee + trade were atomic; lists recent fees/trades | demo / evaluator |
+| **`/explorer`** | Paste any signature → renders the **full CPI tree** from `meta.innerInstructions`; verifies fee + trade are in the same atomic envelope | demo / evaluator |
 | **`/receipt/[signature]`** | Beautiful per-transaction receipt with crypto-proof block | end-user / share link |
 
-The five **bold** routes are new for the course deliverable.
+The five **bold** routes are the verification surface that proves the cryptographic thesis.
 
 ---
 
@@ -123,13 +123,13 @@ The five **bold** routes are new for the course deliverable.
 
 Use this order during a presentation. Each step takes ~30–60 s.
 
-1. **`/blockchain`** — open the *Cryptographic Foundations* and *Atomic Transaction Execution* groups. Shows that every syllabus concept (Ed25519, SHA-256, Merkle trees, atomicity, replay protection) is implemented and points to the exact file. Establishes the academic frame.
+1. **`/blockchain`** — open the *Cryptographic Foundations* and *Atomic Transaction Execution* groups. Every primitive (Ed25519, SHA-256, Merkle trees, atomicity, replay protection, CPI) is mapped to the exact file in the repo where it is implemented. Sets the technical frame.
 2. **`/verify` → "Step-by-step transaction integrity"** — click *Next Step* through all 10 stages. The audience watches a SHA-256 hash and an Ed25519 signature get computed live in their browser, then sees the signature go ❌ INVALID after a 1-lamport tamper. This is *the* money shot.
-3. **`/verify` → "Atomicity proof"** — the multi-tamper matrix flips every kind of post-signing edit (remove fee, change recipient, change amount, reorder) and shows all six rows turn red. One slide of evidence that the design holds.
-4. **`/security`** — click *Run All Tests*. Six attacks are simulated client-side with `tweetnacl` + `Keypair.generate()`. All six show ✅ PROTECTED with byte-level diffs. Frames the project as a security-first contribution.
-5. **`/benchmarks`** — click *Run Benchmarks*. Numbers come back showing **~64 B / ~150 CU / sub-millisecond** overhead — well under 1% on every metric. Quantitative proof that atomic fees are not just correct, they're cheap.
-6. **`/perps`** — connect Phantom on devnet, place a small SOL-PERP order. Once it confirms, the toast surfaces the signature. Click into `/explorer` (or paste into `/receipt/<sig>`) to **see your own transaction on-chain** with two instructions: `SystemProgram.transfer` (the fee) and the Drift instruction. Solscan link verifies independently.
-7. **`/admin`** or **`/creator`** — open the fee/payment tables. Each row's signature is now a Solscan link **and** a link to the in-app `/receipt` page. End-to-end audit trail.
+3. **`/verify` → "Atomicity proof" and "Merkle proof builder"** — the multi-tamper matrix flips every kind of post-signing edit (remove fee, change recipient, change amount, reorder) and shows all six rows turn red. Then the Merkle section builds a tree from a list of leaves, generates an inclusion proof for any leaf, and shows the proof failing after a 1-character tamper.
+4. **`/security`** — click *Run all attack tests*. Six attacks are simulated client-side with `tweetnacl` + `Keypair.generate()`. All six show ✅ PROTECTED with byte-level diffs. Frames the project as a security-first contribution.
+5. **`/benchmarks`** — click *Run Benchmarks*. Numbers come back showing **+64 B / < 1 ms / ~150 of 200,000 CU / ~0.07 %** total relative overhead — well under 1 % on every metric. Quantitative proof that atomic fees are not just correct, they're cheap.
+6. **`/perps`** — connect Phantom on devnet, place a small SOL-PERP order. Once it confirms, the toast surfaces the signature. Open `/explorer`, paste the signature, and **see your own transaction on-chain**: the full CPI tree shows `SystemProgram.transfer` (the fee) and the Drift instruction at depth 0 in the same envelope, with Drift's own cross-program calls (System, SPL Token, Pyth, Switchboard) indented under it.
+7. **`/receipt/<sig>`** or **`/admin`** / **`/creator`** — open the per-transaction receipt or the fee tables. Each row's signature is a Solscan link **and** a link to the in-app `/receipt` page. End-to-end audit trail.
 
 ---
 
@@ -162,15 +162,16 @@ MongoDB schemas (`Fee`, `Trade`, `Signal`, `FeeClaim`) mirror on-chain events ke
 * Creator dashboard (earnings, 50/50 revenue share, claim flow)
 * Signal marketplace (creators publish, customers execute with one click)
 
-### 7.5 Cryptographic & blockchain education layer (NEW)
+### 7.5 Cryptographic & blockchain verification layer (NEW)
 
 The five educational routes (`/blockchain`, `/verify`, `/security`, `/benchmarks`, `/explorer`) plus `/receipt/[signature]` make the underlying cryptography tangible:
 * In-browser Ed25519 signing & verification via `tweetnacl`
 * Web Crypto SHA-256 with avalanche visualisation
 * Live tampering matrix
-* Six attack simulations
-* Quantitative overhead measurements
-* On-chain receipt rendering via `connection.getParsedTransaction`
+* From-scratch SHA-256 Merkle tree (`src/lib/merkle.ts`) with proof builder + tamper test
+* Six attack simulations with byte-level diffs and a "Run all attack tests" button
+* Quantitative overhead measurements (+64 B / < 1 ms / ~150 of 200,000 CU / ~0.07 %)
+* On-chain CPI tree rendering via `connection.getParsedTransaction` + `src/lib/cpi.ts`
 
 ### 7.6 Wallet & multi-environment plumbing
 
@@ -187,8 +188,8 @@ Phantom / Solflare / generic Wallet Adapter, devnet ↔ mainnet toggle (`useDrif
 | Fee amount tamperable? | Yes if relayed | **No** (covered by SHA-256 → Ed25519) |
 | Recipient swap MITM | Possible with stale relays | **No** (recipient is in the signed message) |
 | Trade confirmation surface | Block explorer only | Solscan + in-app **`/receipt/[sig]`** + dashboards |
-| Demonstrability for academic review | None | Six interactive screens prove every claim |
-| Overhead | n/a | **< 1%** in size, latency, and compute |
+| Demonstrability of the claims | None | Six interactive screens prove every claim live |
+| Overhead | n/a | **~0.07 %** total relative overhead — < 1 % on size, latency, and compute |
 
 In short, the project converts an *operational policy* ("please pay the fee") into a *cryptographic invariant* ("you cannot trade without paying the fee"), and ships the proofs as live demos rather than slides.
 
