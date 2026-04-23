@@ -199,6 +199,11 @@ function StepHeader({
 
 // -----------------------------------------------------------------------------
 // Section 1 — Step-by-step Integrity Demo
+//
+// (Section 2 of the original layout — "Atomicity Proof Matrix" — was removed
+//  because its on-mount async work could freeze the UI on slower devices.
+//  Sections were renumbered: old Section 3 is now Section 2, old Section 4
+//  is now Section 3.)
 // -----------------------------------------------------------------------------
 
 interface IntegrityState {
@@ -747,268 +752,12 @@ function IntegrityDemo() {
 }
 
 // -----------------------------------------------------------------------------
-// Section 2 — Atomicity Proof (multi-tamper matrix)
-// -----------------------------------------------------------------------------
-
-interface AtomicityRow {
-  scenario: string;
-  description: string;
-  signatureValid: boolean;
-  hashChanged: boolean;
-  bitsDifferent: number;
-}
-
-function AtomicityProof() {
-  const [rows, setRows] = useState<AtomicityRow[] | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const run = useCallback(async () => {
-    setBusy(true);
-    try {
-      const payer = Keypair.generate();
-      const feeRecipient = Keypair.generate();
-      const altRecipient = Keypair.generate();
-      const tradeRecipient = Keypair.generate();
-      const feeLamports = 5_000;
-      const tradeLamports = 1_000_000;
-
-      const baseTx = buildBundledTx({
-        payer: payer.publicKey,
-        feeRecipient: feeRecipient.publicKey,
-        feeLamports,
-        tradeRecipient: tradeRecipient.publicKey,
-        tradeLamports,
-      });
-      const baseBytes = baseTx.message.serialize();
-      const baseHash = await sha256Hex(baseBytes);
-      const baseHashBytes = hexToBytes(baseHash);
-      const signature = nacl.sign.detached(baseBytes, payer.secretKey);
-
-      const buildVariant = async (
-        scenario: string,
-        description: string,
-        message: VersionedTransaction,
-      ): Promise<AtomicityRow> => {
-        const bytes = message.message.serialize();
-        const hash = await sha256Hex(bytes);
-        const hashBytes = hexToBytes(hash);
-        const valid = nacl.sign.detached.verify(
-          bytes,
-          signature,
-          payer.publicKey.toBytes(),
-        );
-        return {
-          scenario,
-          description,
-          signatureValid: valid,
-          hashChanged: hash !== baseHash,
-          bitsDifferent: countDifferingBits(baseHashBytes, hashBytes),
-        };
-      };
-
-      const variants: AtomicityRow[] = [];
-
-      // Baseline
-      variants.push({
-        scenario: "Original (untouched)",
-        description: "fee + trade, signed by the trader",
-        signatureValid: nacl.sign.detached.verify(
-          baseBytes,
-          signature,
-          payer.publicKey.toBytes(),
-        ),
-        hashChanged: false,
-        bitsDifferent: 0,
-      });
-
-      // Remove fee
-      const tradeOnlyMsg = new TransactionMessage({
-        payerKey: payer.publicKey,
-        instructions: [
-          SystemProgram.transfer({
-            fromPubkey: payer.publicKey,
-            toPubkey: tradeRecipient.publicKey,
-            lamports: tradeLamports,
-          }),
-        ],
-        recentBlockhash: PLACEHOLDER_BLOCKHASH,
-      }).compileToV0Message();
-      variants.push(
-        await buildVariant(
-          "Fee instruction REMOVED",
-          "trade only, fee stripped",
-          new VersionedTransaction(tradeOnlyMsg),
-        ),
-      );
-
-      // Lower fee
-      variants.push(
-        await buildVariant(
-          "Fee amount REDUCED to 1 lamport",
-          "fee=1 + trade, both still present",
-          buildBundledTx({
-            payer: payer.publicKey,
-            feeRecipient: feeRecipient.publicKey,
-            feeLamports: 1,
-            tradeRecipient: tradeRecipient.publicKey,
-            tradeLamports,
-          }),
-        ),
-      );
-
-      // Swap recipient
-      variants.push(
-        await buildVariant(
-          "Fee recipient REROUTED to attacker",
-          "same amount, new recipient",
-          buildBundledTx({
-            payer: payer.publicKey,
-            feeRecipient: altRecipient.publicKey,
-            feeLamports,
-            tradeRecipient: tradeRecipient.publicKey,
-            tradeLamports,
-          }),
-        ),
-      );
-
-      // Reorder instructions
-      const reorderedMsg = new TransactionMessage({
-        payerKey: payer.publicKey,
-        instructions: [
-          SystemProgram.transfer({
-            fromPubkey: payer.publicKey,
-            toPubkey: tradeRecipient.publicKey,
-            lamports: tradeLamports,
-          }),
-          SystemProgram.transfer({
-            fromPubkey: payer.publicKey,
-            toPubkey: feeRecipient.publicKey,
-            lamports: feeLamports,
-          }),
-        ],
-        recentBlockhash: PLACEHOLDER_BLOCKHASH,
-      }).compileToV0Message();
-      variants.push(
-        await buildVariant(
-          "Instructions REORDERED",
-          "trade first, fee second",
-          new VersionedTransaction(reorderedMsg),
-        ),
-      );
-
-      // Change blockhash (replay)
-      variants.push(
-        await buildVariant(
-          "Blockhash CHANGED",
-          "tx body identical, replayed in a new block",
-          buildBundledTx({
-            payer: payer.publicKey,
-            feeRecipient: feeRecipient.publicKey,
-            feeLamports,
-            tradeRecipient: tradeRecipient.publicKey,
-            tradeLamports,
-            blockhash: "22222222222222222222222222222222",
-          }),
-        ),
-      );
-
-      setRows(variants);
-    } finally {
-      setBusy(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void run();
-  }, [run]);
-
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-white">
-              <ShieldCheck className="h-5 w-5 text-purple-400" />
-              Section 2 · Atomicity Proof Matrix
-            </CardTitle>
-            <CardDescription className="text-gray-400">
-              The trader signs ONCE. Every possible tamper invalidates the
-              signature.
-            </CardDescription>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={busy}
-            onClick={() => void run()}
-            className="border-gray-700 bg-gray-800 text-white hover:bg-gray-700"
-          >
-            <RefreshCw className="mr-1.5 h-4 w-4" />
-            Re-run
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {!rows ? (
-          <p className="py-8 text-center text-sm text-gray-400">
-            Running cryptographic checks…
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-700 text-left text-xs uppercase tracking-wider text-gray-500">
-                  <th className="py-2 pr-4">Scenario</th>
-                  <th className="py-2 pr-4">Hash flipped bits</th>
-                  <th className="py-2 pr-4">Signature valid?</th>
-                  <th className="py-2 pr-4">Outcome</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr
-                    key={r.scenario}
-                    className="border-b border-gray-800/70 last:border-0"
-                  >
-                    <td className="py-3 pr-4">
-                      <div className="font-medium text-white">{r.scenario}</div>
-                      <div className="text-xs text-gray-500">
-                        {r.description}
-                      </div>
-                    </td>
-                    <td className="py-3 pr-4 font-mono text-gray-300">
-                      {r.bitsDifferent} / 256
-                    </td>
-                    <td className="py-3 pr-4">
-                      <StatusPill
-                        ok={r.signatureValid}
-                        label={r.signatureValid ? "valid" : "invalid"}
-                      />
-                    </td>
-                    <td className="py-3 pr-4">
-                      {r.scenario === "Original (untouched)" ? (
-                        <span className="text-xs text-gray-400">
-                          would execute
-                        </span>
-                      ) : (
-                        <span className="text-xs text-red-300">
-                          rejected by validators
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// -----------------------------------------------------------------------------
-// Section 3 — Avalanche / Hash properties
+// Section 2 — Avalanche / Hash properties
+//
+// NOTE: the previous "Section 2 · Atomicity Proof Matrix" was removed because
+// its on-mount `useEffect` could freeze the UI on slower devices. The same
+// six tamper attacks are demonstrated interactively on /security with
+// per-attack Run buttons, so this page now jumps directly to hash properties.
 // -----------------------------------------------------------------------------
 
 function HashPropertiesDemo() {
@@ -1037,7 +786,7 @@ function HashPropertiesDemo() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-white">
           <Zap className="h-5 w-5 text-yellow-400" />
-          Section 3 · Hash Properties (avalanche, pre-image, collision)
+          Section 2 · Hash Properties (avalanche, pre-image, collision)
         </CardTitle>
         <CardDescription className="text-gray-400">
           Type something and watch ~half of the SHA-256 output bits flip when
@@ -1115,7 +864,7 @@ function HashPropertiesDemo() {
 }
 
 // -----------------------------------------------------------------------------
-// Section 4 — Merkle proofs
+// Section 3 — Merkle proofs
 // -----------------------------------------------------------------------------
 
 const DEFAULT_LEAVES = [
@@ -1137,6 +886,7 @@ interface MerkleDemoState {
   tamperedValid: boolean | null;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function MerkleProofDemo() {
   const [leavesText, setLeavesText] = useState(DEFAULT_LEAVES.join("\n"));
   const [tamperText, setTamperText] = useState("alice → bob: 1000000 SOL");
@@ -1233,7 +983,7 @@ function MerkleProofDemo() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-white">
           <TreePine className="h-5 w-5 text-emerald-400" />
-          Section 4 · Merkle proofs (logarithmic membership verification)
+          Section 3 · Merkle proofs (logarithmic membership verification)
         </CardTitle>
         <CardDescription className="text-gray-400">
           A Merkle tree commits to a list of items as a single 32-byte root.
@@ -1446,9 +1196,13 @@ export default function VerifyPage() {
 
         <div className="grid gap-6">
           <IntegrityDemo />
-          <AtomicityProof />
           <HashPropertiesDemo />
-          <MerkleProofDemo />
+          {/*
+            Merkle proof section hidden from the live demo — kept in the
+            codebase (see `MerkleProofDemo` below) so we can re-enable it
+            later by uncommenting the line below.
+          */}
+          {/* <MerkleProofDemo /> */}
         </div>
       </div>
     </div>

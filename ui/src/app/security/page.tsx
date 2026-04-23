@@ -116,6 +116,220 @@ function severityColor(sev: AttackDef["severity"]) {
 
 const attacks: AttackDef[] = [
   {
+    id: "fee-bypass",
+    title: "Fee Bypass (instruction stripping)",
+    severity: "high",
+    icon: <Scissors className="h-5 w-5" />,
+    syllabusTopic: "Transaction malleability",
+    theory: (
+      <>
+        In a non-atomic design, the platform sends two separate transactions:
+        one for the fee and one for the trade. A malicious relayer can drop
+        the fee transaction and forward only the trade. My design defeats
+        this by putting both instructions in the same transaction — and the
+        signature covers both.
+      </>
+    ),
+    run: async () => {
+      const payer = Keypair.generate();
+      const builder = Keypair.generate();
+      const exchange = Keypair.generate();
+
+      const feeIx = SystemProgram.transfer({
+        fromPubkey: payer.publicKey,
+        toPubkey: builder.publicKey,
+        lamports: 5_000,
+      });
+      const tradeIx = SystemProgram.transfer({
+        fromPubkey: payer.publicKey,
+        toPubkey: exchange.publicKey,
+        lamports: 1_000_000,
+      });
+
+      const bundled = buildTx(payer.publicKey, [feeIx, tradeIx]);
+      const bundledBytes = bundled.message.serialize();
+      const bundledHash = await sha256Hex(bundledBytes);
+      const signature = nacl.sign.detached(bundledBytes, payer.secretKey);
+
+      // Attacker strips the fee
+      const stripped = buildTx(payer.publicKey, [tradeIx]);
+      const strippedBytes = stripped.message.serialize();
+      const strippedHash = await sha256Hex(strippedBytes);
+      const stripValid = nacl.sign.detached.verify(
+        strippedBytes,
+        signature,
+        payer.publicKey.toBytes(),
+      );
+
+      return {
+        passed: !stripValid,
+        steps: [
+          {
+            label: "Bundle [fee, trade] into one transaction and sign once",
+            detail: `SHA-256 = ${bundledHash.slice(0, 16)}…`,
+            ok: null,
+          },
+          {
+            label: "Attacker removes ix[0] (fee), keeps only ix[1] (trade)",
+            ok: null,
+          },
+          {
+            label: "Hash of stripped transaction",
+            detail: `SHA-256 = ${strippedHash.slice(0, 16)}…`,
+            ok: null,
+          },
+          {
+            label: "Verify original signature against stripped message",
+            detail: `result: ${stripValid ? "valid" : "invalid"}`,
+            ok: !stripValid,
+          },
+        ],
+        verdict:
+          "PROTECTED — removing any instruction changes the message bytes, which changes the SHA-256, which invalidates the Ed25519 signature.",
+      };
+    },
+  },
+
+  {
+    id: "fee-mutation",
+    title: "Fee Amount Manipulation",
+    severity: "high",
+    icon: <Calculator className="h-5 w-5" />,
+    syllabusTopic: "Hash functions / integrity",
+    theory: (
+      <>
+        Even subtler than stripping: the attacker keeps the fee instruction
+        but lowers the lamport amount to zero. Because the lamport value is
+        encoded inside the instruction data of the signed message, mutating
+        it invalidates the signature.
+      </>
+    ),
+    run: async () => {
+      const payer = Keypair.generate();
+      const builder = Keypair.generate();
+      const exchange = Keypair.generate();
+
+      const original = buildTx(payer.publicKey, [
+        SystemProgram.transfer({
+          fromPubkey: payer.publicKey,
+          toPubkey: builder.publicKey,
+          lamports: 5_000,
+        }),
+        SystemProgram.transfer({
+          fromPubkey: payer.publicKey,
+          toPubkey: exchange.publicKey,
+          lamports: 1_000_000,
+        }),
+      ]);
+      const origBytes = original.message.serialize();
+      const sig = nacl.sign.detached(origBytes, payer.secretKey);
+
+      const tampered = buildTx(payer.publicKey, [
+        SystemProgram.transfer({
+          fromPubkey: payer.publicKey,
+          toPubkey: builder.publicKey,
+          lamports: 0,
+        }),
+        SystemProgram.transfer({
+          fromPubkey: payer.publicKey,
+          toPubkey: exchange.publicKey,
+          lamports: 1_000_000,
+        }),
+      ]);
+      const tampBytes = tampered.message.serialize();
+
+      const valid = nacl.sign.detached.verify(
+        tampBytes,
+        sig,
+        payer.publicKey.toBytes(),
+      );
+
+      return {
+        passed: !valid,
+        steps: [
+          { label: "Original fee = 5,000 lamports (signed)", ok: null },
+          { label: "Attacker rewrites fee = 0 lamports", ok: null },
+          {
+            label: "Verify signature against tampered message",
+            detail: `result: ${valid ? "valid" : "invalid"}`,
+            ok: !valid,
+          },
+        ],
+        verdict:
+          "PROTECTED — instruction data is part of the signed message; any change is detected.",
+      };
+    },
+  },
+
+  {
+    id: "mitm",
+    title: "Man-in-the-Middle (recipient swap)",
+    severity: "high",
+    icon: <UserX className="h-5 w-5" />,
+    syllabusTopic: "Routing / MITM attacks",
+    theory: (
+      <>
+        A network-level attacker (compromised RPC endpoint) intercepts the
+        transaction between the wallet and the validator and rewrites the fee
+        recipient to their own address. Because every account key is part of
+        the signed message, this attack also fails.
+      </>
+    ),
+    run: async () => {
+      const payer = Keypair.generate();
+      const honestBuilder = Keypair.generate();
+      const attackerWallet = Keypair.generate();
+
+      const original = buildTx(payer.publicKey, [
+        SystemProgram.transfer({
+          fromPubkey: payer.publicKey,
+          toPubkey: honestBuilder.publicKey,
+          lamports: 5_000,
+        }),
+      ]);
+      const origBytes = original.message.serialize();
+      const sig = nacl.sign.detached(origBytes, payer.secretKey);
+
+      const rerouted = buildTx(payer.publicKey, [
+        SystemProgram.transfer({
+          fromPubkey: payer.publicKey,
+          toPubkey: attackerWallet.publicKey,
+          lamports: 5_000,
+        }),
+      ]);
+      const reroutedBytes = rerouted.message.serialize();
+      const valid = nacl.sign.detached.verify(
+        reroutedBytes,
+        sig,
+        payer.publicKey.toBytes(),
+      );
+
+      return {
+        passed: !valid,
+        steps: [
+          {
+            label: "Honest fee recipient",
+            detail: honestBuilder.publicKey.toBase58(),
+            ok: null,
+          },
+          {
+            label: "Attacker rewrites recipient to",
+            detail: attackerWallet.publicKey.toBase58(),
+            ok: null,
+          },
+          {
+            label: "Verify against rewritten message",
+            detail: `result: ${valid ? "valid" : "invalid"}`,
+            ok: !valid,
+          },
+        ],
+        verdict:
+          "PROTECTED — account keys live in the signed message header; substituting any pubkey breaks the signature.",
+      };
+    },
+  },
+
+  {
     id: "replay",
     title: "Replay Attack",
     severity: "high",
@@ -276,152 +490,6 @@ const attacks: AttackDef[] = [
   },
 
   {
-    id: "fee-bypass",
-    title: "Fee Bypass (instruction stripping)",
-    severity: "high",
-    icon: <Scissors className="h-5 w-5" />,
-    syllabusTopic: "Transaction malleability",
-    theory: (
-      <>
-        In a non-atomic design, the platform sends two separate transactions:
-        one for the fee and one for the trade. A malicious relayer can drop
-        the fee transaction and forward only the trade. My design defeats
-        this by putting both instructions in the same transaction — and the
-        signature covers both.
-      </>
-    ),
-    run: async () => {
-      const payer = Keypair.generate();
-      const builder = Keypair.generate();
-      const exchange = Keypair.generate();
-
-      const feeIx = SystemProgram.transfer({
-        fromPubkey: payer.publicKey,
-        toPubkey: builder.publicKey,
-        lamports: 5_000,
-      });
-      const tradeIx = SystemProgram.transfer({
-        fromPubkey: payer.publicKey,
-        toPubkey: exchange.publicKey,
-        lamports: 1_000_000,
-      });
-
-      const bundled = buildTx(payer.publicKey, [feeIx, tradeIx]);
-      const bundledBytes = bundled.message.serialize();
-      const bundledHash = await sha256Hex(bundledBytes);
-      const signature = nacl.sign.detached(bundledBytes, payer.secretKey);
-
-      // Attacker strips the fee
-      const stripped = buildTx(payer.publicKey, [tradeIx]);
-      const strippedBytes = stripped.message.serialize();
-      const strippedHash = await sha256Hex(strippedBytes);
-      const stripValid = nacl.sign.detached.verify(
-        strippedBytes,
-        signature,
-        payer.publicKey.toBytes(),
-      );
-
-      return {
-        passed: !stripValid,
-        steps: [
-          {
-            label: "Bundle [fee, trade] into one transaction and sign once",
-            detail: `SHA-256 = ${bundledHash.slice(0, 16)}…`,
-            ok: null,
-          },
-          {
-            label: "Attacker removes ix[0] (fee), keeps only ix[1] (trade)",
-            ok: null,
-          },
-          {
-            label: "Hash of stripped transaction",
-            detail: `SHA-256 = ${strippedHash.slice(0, 16)}…`,
-            ok: null,
-          },
-          {
-            label: "Verify original signature against stripped message",
-            detail: `result: ${stripValid ? "valid" : "invalid"}`,
-            ok: !stripValid,
-          },
-        ],
-        verdict:
-          "PROTECTED — removing any instruction changes the message bytes, which changes the SHA-256, which invalidates the Ed25519 signature.",
-      };
-    },
-  },
-
-  {
-    id: "fee-mutation",
-    title: "Fee Amount Manipulation",
-    severity: "high",
-    icon: <Calculator className="h-5 w-5" />,
-    syllabusTopic: "Hash functions / integrity",
-    theory: (
-      <>
-        Even subtler than stripping: the attacker keeps the fee instruction
-        but lowers the lamport amount to zero. Because the lamport value is
-        encoded inside the instruction data of the signed message, mutating
-        it invalidates the signature.
-      </>
-    ),
-    run: async () => {
-      const payer = Keypair.generate();
-      const builder = Keypair.generate();
-      const exchange = Keypair.generate();
-
-      const original = buildTx(payer.publicKey, [
-        SystemProgram.transfer({
-          fromPubkey: payer.publicKey,
-          toPubkey: builder.publicKey,
-          lamports: 5_000,
-        }),
-        SystemProgram.transfer({
-          fromPubkey: payer.publicKey,
-          toPubkey: exchange.publicKey,
-          lamports: 1_000_000,
-        }),
-      ]);
-      const origBytes = original.message.serialize();
-      const sig = nacl.sign.detached(origBytes, payer.secretKey);
-
-      const tampered = buildTx(payer.publicKey, [
-        SystemProgram.transfer({
-          fromPubkey: payer.publicKey,
-          toPubkey: builder.publicKey,
-          lamports: 0,
-        }),
-        SystemProgram.transfer({
-          fromPubkey: payer.publicKey,
-          toPubkey: exchange.publicKey,
-          lamports: 1_000_000,
-        }),
-      ]);
-      const tampBytes = tampered.message.serialize();
-
-      const valid = nacl.sign.detached.verify(
-        tampBytes,
-        sig,
-        payer.publicKey.toBytes(),
-      );
-
-      return {
-        passed: !valid,
-        steps: [
-          { label: "Original fee = 5,000 lamports (signed)", ok: null },
-          { label: "Attacker rewrites fee = 0 lamports", ok: null },
-          {
-            label: "Verify signature against tampered message",
-            detail: `result: ${valid ? "valid" : "invalid"}`,
-            ok: !valid,
-          },
-        ],
-        verdict:
-          "PROTECTED — instruction data is part of the signed message; any change is detected.",
-      };
-    },
-  },
-
-  {
     id: "reorder",
     title: "Instruction Reordering",
     severity: "medium",
@@ -488,74 +556,6 @@ const attacks: AttackDef[] = [
         ],
         verdict:
           "PROTECTED — the compiled message bytes encode order; any permutation changes the hash.",
-      };
-    },
-  },
-
-  {
-    id: "mitm",
-    title: "Man-in-the-Middle (recipient swap)",
-    severity: "high",
-    icon: <UserX className="h-5 w-5" />,
-    syllabusTopic: "Routing / MITM attacks",
-    theory: (
-      <>
-        A network-level attacker (compromised RPC endpoint) intercepts the
-        transaction between the wallet and the validator and rewrites the fee
-        recipient to their own address. Because every account key is part of
-        the signed message, this attack also fails.
-      </>
-    ),
-    run: async () => {
-      const payer = Keypair.generate();
-      const honestBuilder = Keypair.generate();
-      const attackerWallet = Keypair.generate();
-
-      const original = buildTx(payer.publicKey, [
-        SystemProgram.transfer({
-          fromPubkey: payer.publicKey,
-          toPubkey: honestBuilder.publicKey,
-          lamports: 5_000,
-        }),
-      ]);
-      const origBytes = original.message.serialize();
-      const sig = nacl.sign.detached(origBytes, payer.secretKey);
-
-      const rerouted = buildTx(payer.publicKey, [
-        SystemProgram.transfer({
-          fromPubkey: payer.publicKey,
-          toPubkey: attackerWallet.publicKey,
-          lamports: 5_000,
-        }),
-      ]);
-      const reroutedBytes = rerouted.message.serialize();
-      const valid = nacl.sign.detached.verify(
-        reroutedBytes,
-        sig,
-        payer.publicKey.toBytes(),
-      );
-
-      return {
-        passed: !valid,
-        steps: [
-          {
-            label: "Honest fee recipient",
-            detail: honestBuilder.publicKey.toBase58(),
-            ok: null,
-          },
-          {
-            label: "Attacker rewrites recipient to",
-            detail: attackerWallet.publicKey.toBase58(),
-            ok: null,
-          },
-          {
-            label: "Verify against rewritten message",
-            detail: `result: ${valid ? "valid" : "invalid"}`,
-            ok: !valid,
-          },
-        ],
-        verdict:
-          "PROTECTED — account keys live in the signed message header; substituting any pubkey breaks the signature.",
       };
     },
   },

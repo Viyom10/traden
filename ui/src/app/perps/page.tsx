@@ -21,7 +21,9 @@ import { SearchableMarketSelect } from "../../components/ui/searchable-market-se
 import { DEFAULT_PERP_MARKET_INDEX } from "../../constants/defaultMarkets";
 import { SUPPORTED_PERP_MARKET_INDEXES } from "../../constants/supportedMarkets";
 import { MarketId, TRADING_UTILS } from "@drift-labs/common";
-import { BigNum, PRICE_PRECISION_EXP, ZERO } from "@drift-labs/sdk";
+import { BigNum, PRICE_PRECISION_EXP, ZERO, BN } from "@drift-labs/sdk";
+import { SIMULATED_PERP_MARKETS, getSimulatedMarketPrice } from "@/constants/simulatedMarkets";
+import type { PerpMarketConfig } from "@drift-labs/sdk";
 import { useOrderbookWebSocket } from "../../hooks/perps/useOrderbookWebSocket";
 import {
   Dialog,
@@ -40,12 +42,22 @@ export default function PerpsPage() {
   const allPerpMarketConfigs = useDriftStore((s) => s.getPerpMarketConfigs());
   
   // Filter to only show supported markets
-  const perpMarketConfigs = useMemo(
-    () => allPerpMarketConfigs.filter((config) => 
-      SUPPORTED_PERP_MARKET_INDEXES.includes(config.marketIndex)
-    ),
-    [allPerpMarketConfigs]
-  );
+  const perpMarketConfigs = useMemo(() => {
+    const real = allPerpMarketConfigs.filter((config) =>
+      SUPPORTED_PERP_MARKET_INDEXES.includes(config.marketIndex),
+    );
+    if (real.length > 0) return real;
+    // Fallback so the trade form, market dropdown, and price tiles still
+    // render in demo mode when the live Drift subscription is unavailable.
+    return SIMULATED_PERP_MARKETS.map(
+      (m) =>
+        ({
+          marketIndex: m.marketIndex,
+          symbol: m.symbol,
+          baseAssetSymbol: m.baseAssetSymbol,
+        }) as unknown as PerpMarketConfig,
+    );
+  }, [allPerpMarketConfigs]);
   
   const [selectedMarketIndex, setSelectedMarketIndex] = useState<number>(
     DEFAULT_PERP_MARKET_INDEX,
@@ -67,6 +79,14 @@ export default function PerpsPage() {
   const oraclePriceData = useOraclePriceStore(
     (s) => s.lookup[selectedMarketId.key],
   );
+
+  // Fallback price (in PRICE_PRECISION = 1e6) so the price tiles always show
+  // a value even when the oracle / mark stores haven't been populated yet.
+  const fallbackPriceBN = useMemo(() => {
+    const usd = getSimulatedMarketPrice(selectedMarketIndex);
+    if (usd <= 0) return undefined;
+    return new BN(Math.floor(usd * 1_000_000));
+  }, [selectedMarketIndex]);
 
   // Show leverage limitation dialog on page load
   useEffect(() => {
@@ -153,9 +173,9 @@ export default function PerpsPage() {
                   {/* Mark Price Display */}
                   <div className="text-center">
                     <div className="text-2xl font-bold text-green-400">
-                      {markPriceData
+                      {markPriceData || fallbackPriceBN
                         ? `${BigNum.from(
-                            markPriceData?.markPrice ?? ZERO,
+                            markPriceData?.markPrice ?? fallbackPriceBN ?? ZERO,
                             PRICE_PRECISION_EXP,
                           ).toNotional(undefined, undefined, tickSizeDecimals)}`
                         : "--"}
@@ -168,9 +188,9 @@ export default function PerpsPage() {
                   {/* Oracle Price Display */}
                   <div className="text-center">
                     <div className="text-2xl font-bold text-blue-400">
-                      {oraclePriceData
+                      {oraclePriceData || fallbackPriceBN
                         ? `${BigNum.from(
-                            oraclePriceData?.price ?? ZERO,
+                            oraclePriceData?.price ?? fallbackPriceBN ?? ZERO,
                             PRICE_PRECISION_EXP,
                           ).toNotional(undefined, undefined, tickSizeDecimals)}`
                         : "--"}

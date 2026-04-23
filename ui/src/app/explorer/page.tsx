@@ -46,6 +46,11 @@ import {
   type CpiTree,
   type InstructionNode,
 } from "@/lib/cpi";
+import {
+  getSimulatedTrade,
+  getSimulatedTrades,
+  type SimulatedTrade,
+} from "@/lib/simulatedTrades";
 import { toast } from "sonner";
 
 interface RecentRow {
@@ -69,6 +74,68 @@ interface ParsedView {
   hasBothInSameTx: boolean;
   builderAuthority: string | null;
   errorMessage?: string;
+  simulated?: boolean;
+}
+
+/**
+ * Build a synthetic ParsedView for a simulated transaction so the verifier
+ * UI can render the same three green pills + CPI tree without ever hitting
+ * an RPC. Used in demo mode when the live Drift / RPC pipeline is unusable.
+ */
+function buildSimulatedView(trade: SimulatedTrade): ParsedView {
+  const feeNode: InstructionNode = {
+    programId: SYSTEM_PROGRAM_ID,
+    programLabel: "System Program",
+    type: "transfer",
+    info: {
+      source: trade.payer,
+      destination: trade.recipient,
+      lamports: Number(trade.feeLamports),
+    },
+    innerInstructions: [],
+  };
+
+  const tradeNode: InstructionNode = {
+    programId: DRIFT_PROGRAM_ID,
+    programLabel: "Drift Protocol",
+    type: "placePerpOrder",
+    info: undefined,
+    rawData: "5T9k…(base58 encoded ix data)",
+    innerInstructions: [
+      {
+        programId: SYSTEM_PROGRAM_ID,
+        programLabel: "System Program",
+        type: "transfer",
+        info: {
+          source: trade.payer,
+          destination: "DriftVault111111111111111111111111111111111",
+          lamports: 1_400_000,
+        },
+        innerInstructions: [],
+      },
+    ],
+  };
+
+  const cpiTree: CpiTree = {
+    topLevel: [feeNode, tradeNode],
+    totalCpiHops: 1,
+    uniqueProgramsTouched: [SYSTEM_PROGRAM_ID, DRIFT_PROGRAM_ID],
+  };
+
+  return {
+    signature: trade.signature,
+    status: "success",
+    slot: trade.slot,
+    blockTime: new Date(trade.blockTime * 1000).toLocaleString(),
+    feePaidLamports: 5000,
+    numInstructions: 2,
+    cpiTree,
+    hasFeeInstruction: true,
+    hasTradeInstruction: true,
+    hasBothInSameTx: true,
+    builderAuthority: trade.recipient,
+    simulated: true,
+  };
 }
 
 function isFeeNode(node: InstructionNode, builderAuthority: string | null): boolean {
@@ -154,17 +221,30 @@ export default function ExplorerPage() {
     setRecentLoading(true);
     try {
       const [feeRes, tradeRes] = await Promise.all([
-        fetch("/api/fee?limit=10").then((r) =>
-          r.ok ? r.json() : { fees: [] },
-        ),
-        fetch("/api/trade?limit=10").then((r) =>
-          r.ok ? r.json() : { trades: [] },
-        ),
+        fetch("/api/fee?limit=10")
+          .then((r) => (r.ok ? r.json() : { fees: [] }))
+          .catch(() => ({ fees: [] })),
+        fetch("/api/trade?limit=10")
+          .then((r) => (r.ok ? r.json() : { trades: [] }))
+          .catch(() => ({ trades: [] })),
       ]);
 
       const rows: RecentRow[] = [];
+
+      // Simulated trades from localStorage are surfaced first so the demo
+      // signature you just produced shows up at the top of the list.
+      for (const t of getSimulatedTrades()) {
+        rows.push({
+          signature: t.signature,
+          feeAmount: t.feeSol,
+          feeInLamports: t.feeLamports,
+          timestamp: t.timestamp,
+          source: "fee",
+        });
+      }
+
       for (const f of feeRes.fees ?? []) {
-        if (f.txSignature) {
+        if (f.txSignature && !rows.some((r) => r.signature === f.txSignature)) {
           rows.push({
             signature: f.txSignature,
             feeAmount: f.feeAmount,
@@ -197,6 +277,21 @@ export default function ExplorerPage() {
     void loadRecent();
   }, [loadRecent]);
 
+  // Auto-load and verify ?sig=… so the success toast on /perps deep-links
+  // straight into a verified explorer view.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const sig = params.get("sig");
+    if (sig) {
+      setSignature(sig);
+      void verifyRef.current?.(sig);
+    }
+    // verifyRef set below intentionally
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const verifyRef = React.useRef<((sig: string) => Promise<void>) | null>(null);
+
   const verify = useCallback(
     async (sig: string) => {
       const trimmed = sig.trim();
@@ -204,13 +299,23 @@ export default function ExplorerPage() {
         setError("Please paste a transaction signature.");
         return;
       }
-      if (!connection) {
-        setError("No Solana RPC connection available.");
-        return;
-      }
       setError(null);
       setLoading(true);
       setView(null);
+
+      // Demo / simulated path — no RPC needed.
+      const sim = getSimulatedTrade(trimmed);
+      if (sim) {
+        setView(buildSimulatedView(sim));
+        setLoading(false);
+        return;
+      }
+
+      if (!connection) {
+        setError("No Solana RPC connection available.");
+        setLoading(false);
+        return;
+      }
       try {
         const tx = await connection.getParsedTransaction(trimmed, {
           maxSupportedTransactionVersion: 0,
@@ -234,6 +339,12 @@ export default function ExplorerPage() {
     },
     [connection, builderAuthority],
   );
+
+  // Keep a ref to verify so the URL-param effect can call it without making
+  // verify a dependency (which would re-trigger on every connection change).
+  useEffect(() => {
+    verifyRef.current = verify;
+  }, [verify]);
 
   const copy = (text: string) => {
     void navigator.clipboard.writeText(text);
@@ -318,7 +429,14 @@ export default function ExplorerPage() {
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <CardTitle className="text-white">Verification result</CardTitle>
+                  <CardTitle className="flex items-center gap-2 text-white">
+                    Verification result
+                    {view.simulated && (
+                      <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300">
+                        Demo
+                      </span>
+                    )}
+                  </CardTitle>
                   <CardDescription className="text-gray-400">
                     Slot {view.slot.toLocaleString()} · {view.blockTime}
                   </CardDescription>

@@ -25,6 +25,11 @@ import { CandleClient } from "@drift-labs/common";
 import { MarketId, JsonCandle } from "@drift-labs/common";
 import { UIEnv } from "@drift-labs/common";
 import { CandleResolution } from "@drift-labs/sdk";
+import {
+  generateSimulatedCandles,
+  nextSimulatedCandle,
+  tickInProgressCandle,
+} from "./simulatedCandles";
 
 interface CandleChartProps {
   selectedMarketId: MarketId;
@@ -84,6 +89,9 @@ export const CandleChart: React.FC<CandleChartProps> = ({
   );
   const [hoveredVolume, setHoveredVolume] = useState<VolumeData | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isSimulated, setIsSimulated] = useState(false);
+  const simTickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const simBarTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Create UIEnv - using mainnet as configured in useSetupDrift
   const env = useMemo(() => UIEnv.createMainnet(), []);
@@ -253,47 +261,71 @@ export const CandleChart: React.FC<CandleChartProps> = ({
     };
   }, []);
 
-  // Fetch historical candles (initial load)
+  // Render a batch of candles (real or simulated) into the chart series.
+  const renderCandles = useCallback(
+    (candles: JsonCandle[]) => {
+      if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
+      if (candles.length === 0) return;
+      const transformedCandles = transformCandleData(candles);
+      const transformedVolume = transformVolumeData(candles);
+      candleSeriesRef.current.setData(transformedCandles);
+      volumeSeriesRef.current.setData(transformedVolume);
+    },
+    [transformCandleData, transformVolumeData],
+  );
+
+  // Build and render simulated candles for the current market + resolution.
+  const loadSimulated = useCallback(() => {
+    const resolutionMinutes = parseInt(resolution);
+    const candles = generateSimulatedCandles({
+      marketIndex: selectedMarketId.marketIndex,
+      resolutionMinutes,
+      count: DEFAULT_CANDLE_COUNT,
+    });
+    setCandleData(candles);
+    setIsSimulated(true);
+    setError(null);
+    renderCandles(candles);
+  }, [selectedMarketId, resolution, renderCandles]);
+
+  // Fetch historical candles (initial load) with a strict timeout so the user
+  // never waits more than a few seconds for the chart. Falls back to a fully
+  // simulated candle series when the real feed is unavailable (RPC blocked,
+  // devnet feed missing, etc.).
   const fetchCandles = useCallback(async () => {
     if (!candleClient) return;
 
     setIsLoading(true);
     setError(null);
 
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const fromTs = nowSeconds - DEFAULT_CANDLE_COUNT * parseInt(resolution) * 60;
+    const toTs = nowSeconds;
+    const fetchConfig = {
+      env,
+      marketId: selectedMarketId,
+      resolution,
+      fromTs,
+      toTs,
+    };
+
+    const realFetch = candleClient.fetch(fetchConfig);
+    const timeout = new Promise<JsonCandle[]>((resolve) =>
+      setTimeout(() => resolve([]), 4000),
+    );
+
     try {
-      const nowSeconds = Math.floor(Date.now() / 1000);
-      const fromTs =
-        nowSeconds - DEFAULT_CANDLE_COUNT * parseInt(resolution) * 60;
-      const toTs = nowSeconds;
-
-      const fetchConfig = {
-        env,
-        marketId: selectedMarketId,
-        resolution,
-        fromTs,
-        toTs,
-      };
-
-      const candles = await candleClient.fetch(fetchConfig);
-      setCandleData(candles);
-
-      // Update chart with new data
-      if (
-        candleSeriesRef.current &&
-        volumeSeriesRef.current &&
-        candles.length > 0
-      ) {
-        const transformedCandles = transformCandleData(candles);
-        const transformedVolume = transformVolumeData(candles);
-
-        candleSeriesRef.current.setData(transformedCandles);
-        volumeSeriesRef.current.setData(transformedVolume);
+      const candles = await Promise.race([realFetch, timeout]);
+      if (candles && candles.length > 0) {
+        setCandleData(candles);
+        setIsSimulated(false);
+        renderCandles(candles);
+      } else {
+        loadSimulated();
       }
     } catch (err) {
-      console.error("Failed to fetch candles:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to fetch candle data",
-      );
+      console.warn("Real candle fetch failed, falling back to simulation:", err);
+      loadSimulated();
     } finally {
       setIsLoading(false);
     }
@@ -302,8 +334,8 @@ export const CandleChart: React.FC<CandleChartProps> = ({
     env,
     selectedMarketId,
     resolution,
-    transformCandleData,
-    transformVolumeData,
+    renderCandles,
+    loadSimulated,
   ]);
 
   // Fetch more historical candles when scrolling left
@@ -467,15 +499,80 @@ export const CandleChart: React.FC<CandleChartProps> = ({
     fetchCandles();
   }, [fetchCandles]);
 
-  // Subscribe to real-time updates
+  // Subscribe to real-time updates (real OR simulated tick stream).
   useEffect(() => {
+    // Always clean up any prior simulated tickers before setting up new ones.
+    if (simTickerRef.current) {
+      clearInterval(simTickerRef.current);
+      simTickerRef.current = null;
+    }
+    if (simBarTimerRef.current) {
+      clearInterval(simBarTimerRef.current);
+      simBarTimerRef.current = null;
+    }
+
+    if (isSimulated) {
+      const resolutionMinutes = parseInt(resolution);
+
+      // Mid-bar tick: jiggle the latest candle 3x/sec for a "live" feel.
+      simTickerRef.current = setInterval(() => {
+        setCandleData((prev) => {
+          if (prev.length === 0) return prev;
+          const last = prev[prev.length - 1];
+          const ticked = tickInProgressCandle(
+            last,
+            selectedMarketId.marketIndex,
+            resolutionMinutes,
+          );
+          if (candleSeriesRef.current && volumeSeriesRef.current) {
+            candleSeriesRef.current.update(transformCandleData([ticked])[0]);
+            volumeSeriesRef.current.update(transformVolumeData([ticked])[0]);
+          }
+          return [...prev.slice(0, -1), ticked];
+        });
+      }, 350);
+
+      // New-bar event every `resolutionMinutes` minutes.
+      simBarTimerRef.current = setInterval(() => {
+        setCandleData((prev) => {
+          if (prev.length === 0) return prev;
+          const last = prev[prev.length - 1];
+          const newBar = nextSimulatedCandle(
+            last,
+            selectedMarketId.marketIndex,
+            resolutionMinutes,
+          );
+          if (candleSeriesRef.current && volumeSeriesRef.current) {
+            candleSeriesRef.current.update(transformCandleData([newBar])[0]);
+            volumeSeriesRef.current.update(transformVolumeData([newBar])[0]);
+          }
+          return [...prev, newBar];
+        });
+      }, resolutionMinutes * 60 * 1000);
+
+      return () => {
+        if (simTickerRef.current) clearInterval(simTickerRef.current);
+        if (simBarTimerRef.current) clearInterval(simBarTimerRef.current);
+        simTickerRef.current = null;
+        simBarTimerRef.current = null;
+      };
+    }
+
     subscribeToUpdates();
     return () => {
       if (subscriptionKeyRef.current && candleClient) {
         candleClient.unsubscribe(subscriptionKeyRef.current);
       }
     };
-  }, [subscribeToUpdates, candleClient]);
+  }, [
+    isSimulated,
+    resolution,
+    selectedMarketId,
+    subscribeToUpdates,
+    candleClient,
+    transformCandleData,
+    transformVolumeData,
+  ]);
 
   // Subscribe to visible time range changes for scroll-based loading
   useEffect(() => {
@@ -639,6 +736,14 @@ export const CandleChart: React.FC<CandleChartProps> = ({
                 <AlertCircle className="h-4 w-4" />
                 {error}
               </div>
+            </div>
+          )}
+
+          {/* Demo data badge — visible only when the chart is rendering
+              simulated candles (real feed unreachable). */}
+          {isSimulated && (
+            <div className="absolute top-3 right-3 z-20 px-2 py-1 rounded-md bg-amber-500/15 border border-amber-500/40 text-amber-300 text-[10px] font-semibold tracking-wider uppercase">
+              Demo data
             </div>
           )}
 

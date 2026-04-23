@@ -113,16 +113,32 @@ export const useSetupDrift = () => {
   const isConnected = wallet.wallet?.adapter.connected;
   const driftConfig = useMemo(() => DRIFT_CONFIGS[environment], [environment]);
 
+  // #region agent log
+  if (typeof window !== "undefined") {
+    const rawMain = process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC_ENDPOINT;
+    const rawDev = process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_ENDPOINT;
+    const redact = (s?: string) => s ? s.replace(/api-key=[^&]+/i,'api-key=REDACTED') : s;
+    fetch('http://127.0.0.1:7558/ingest/07dec5c5-6e4b-4d00-8c90-4214e43f37f0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'12827c'},body:JSON.stringify({sessionId:'12827c',hypothesisId:'F',location:'useSetupDrift.ts:render',message:'hook render',data:{environment,isConnected,hasDrift:!!drift,configEnv:driftConfig?.driftEnv,activeRpc:redact(driftConfig?.solanaRpcEndpoint),envMainRaw:redact(rawMain),envDevRaw:redact(rawDev),envMainHasHelius:rawMain?.includes('helius')||false,walletName:wallet.wallet?.adapter?.name,walletPubkey:wallet.publicKey?.toBase58?.()||null},timestamp:Date.now()})}).catch(()=>{});
+  }
+  // #endregion
+
   useSyncDriftAuthority();
 
   // teardown and setup AuthorityDrift and zustand stores
   useDebounce(
     () => {
+      // #region agent log
+      fetch('http://127.0.0.1:7558/ingest/07dec5c5-6e4b-4d00-8c90-4214e43f37f0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'12827c'},body:JSON.stringify({sessionId:'12827c',hypothesisId:'E',location:'useSetupDrift.ts:debounce-fired',message:'debounce callback fired',data:{isSubscribing:isSubscribingToDrift.current,hasCurrentDrift:!!driftRef.current,currentEnv:driftRef.current?.driftClient?.env,targetEnv:driftConfig?.driftEnv,isConnected},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       if (isSubscribingToDrift.current) return;
 
       const currentDrift = driftRef.current;
       const needsNewDrift =
         !currentDrift || currentDrift.driftClient.env !== driftConfig.driftEnv;
+
+      // #region agent log
+      fetch('http://127.0.0.1:7558/ingest/07dec5c5-6e4b-4d00-8c90-4214e43f37f0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'12827c'},body:JSON.stringify({sessionId:'12827c',hypothesisId:'E',location:'useSetupDrift.ts:needsNewDrift-check',message:'needsNewDrift evaluated',data:{needsNewDrift,hasCurrentDrift:!!currentDrift,currentEnv:currentDrift?.driftClient?.env,targetEnv:driftConfig?.driftEnv},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
 
       if (!needsNewDrift) return;
 
@@ -161,21 +177,38 @@ export const useSetupDrift = () => {
           s.activeSubAccountId = undefined;
         });
 
-        authorityDriftInstance = new AuthorityDrift({
-          ...driftConfig,
-          wallet: walletToUse,
-        });
-
-        // Install the atomic-fee interceptor immediately after constructing
-        // the AuthorityDrift instance. This MUST happen before any subscribe
-        // call so the wrapped `driftClient.sendTransaction` is in place
-        // before user-initiated orders can fire. Installing once per Drift
-        // instance is required — see DriftClientWrapper for the rationale
-        // (double install would chain prepends and double-charge fees).
-        installTradingFeeInterceptor(authorityDriftInstance);
+        // #region agent log
+        fetch('http://127.0.0.1:7558/ingest/07dec5c5-6e4b-4d00-8c90-4214e43f37f0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'12827c'},body:JSON.stringify({sessionId:'12827c',hypothesisId:'B,C',location:'useSetupDrift.ts:before-construct',message:'about to construct AuthorityDrift',data:{rpc:driftConfig?.solanaRpcEndpoint?.replace(/api-key=[^&]+/,'api-key=REDACTED'),env:driftConfig?.driftEnv,walletKind:isConnected?'real':'placeholder',walletHasPubkey:!!(walletToUse as unknown as {publicKey?:unknown}).publicKey},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        try {
+          authorityDriftInstance = new AuthorityDrift({
+            ...driftConfig,
+            wallet: walletToUse,
+          });
+        } catch (e) {
+          // #region agent log
+          fetch('http://127.0.0.1:7558/ingest/07dec5c5-6e4b-4d00-8c90-4214e43f37f0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'12827c'},body:JSON.stringify({sessionId:'12827c',hypothesisId:'B,C',location:'useSetupDrift.ts:construct-throw',message:'AuthorityDrift constructor threw',data:{error:String(e),stack:(e as Error)?.stack?.split('\n').slice(0,8)},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
+          isSubscribingToDrift.current = false;
+          throw e;
+        }
 
         try {
+          installTradingFeeInterceptor(authorityDriftInstance);
+        } catch (e) {
+          // #region agent log
+          fetch('http://127.0.0.1:7558/ingest/07dec5c5-6e4b-4d00-8c90-4214e43f37f0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'12827c'},body:JSON.stringify({sessionId:'12827c',hypothesisId:'B',location:'useSetupDrift.ts:interceptor-throw',message:'installTradingFeeInterceptor threw',data:{error:String(e),stack:(e as Error)?.stack?.split('\n').slice(0,8)},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
+        }
+
+        try {
+          // #region agent log
+          fetch('http://127.0.0.1:7558/ingest/07dec5c5-6e4b-4d00-8c90-4214e43f37f0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'12827c'},body:JSON.stringify({sessionId:'12827c',hypothesisId:'A',location:'useSetupDrift.ts:before-subscribe',message:'about to subscribe',data:{env:driftConfig?.driftEnv},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
           await authorityDriftInstance.subscribe();
+          // #region agent log
+          fetch('http://127.0.0.1:7558/ingest/07dec5c5-6e4b-4d00-8c90-4214e43f37f0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'12827c'},body:JSON.stringify({sessionId:'12827c',hypothesisId:'A',location:'useSetupDrift.ts:after-subscribe',message:'subscribe resolved',data:{perpMarkets:authorityDriftInstance.perpMarketConfigs?.length,spotMarkets:authorityDriftInstance.spotMarketConfigs?.length,oracleKeys:Object.keys(authorityDriftInstance.oraclePriceCache||{}).length},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
 
           if (cancelled) {
             await authorityDriftInstance.unsubscribe().catch(() => undefined);
@@ -236,6 +269,9 @@ export const useSetupDrift = () => {
             });
           });
         } catch (error) {
+          // #region agent log
+          fetch('http://127.0.0.1:7558/ingest/07dec5c5-6e4b-4d00-8c90-4214e43f37f0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'12827c'},body:JSON.stringify({sessionId:'12827c',hypothesisId:'A,C,D',location:'useSetupDrift.ts:setup-catch',message:'Drift setup threw',data:{error:String(error),name:(error as Error)?.name,stack:(error as Error)?.stack?.split('\n').slice(0,12)},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
           console.error("Failed to set up Drift", error);
         } finally {
           isSubscribingToDrift.current = false;

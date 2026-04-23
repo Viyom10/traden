@@ -336,7 +336,9 @@ export function installTradingFeeInterceptor(
         if (tx instanceof VersionedTransaction) {
           console.log("📦 VersionedTransaction detected - bundling fee instruction");
           
-          // Create fee instruction
+          // [1] BUILD FEE IX — native SystemProgram.transfer carrying
+          //     `lamports` from trader → builder authority. No custom
+          //     program, no IDL, fully indexable by every explorer.
           const feeInstruction = SystemProgram.transfer({
             fromPubkey: driftClient.wallet.publicKey,
             toPubkey: recipient,
@@ -383,15 +385,23 @@ export function installTradingFeeInterceptor(
             }
           }
           
-          // Decompile the original message to get instructions
+          // [2] DECOMPILE — Drift gives us a *compiled* V0 message
+          //     (binary). Decompiling turns it back into an editable
+          //     instruction array so we can splice our fee in.
           const decompiled = addressLookupTableAccounts 
             ? TransactionMessage.decompile(originalMessage, { addressLookupTableAccounts })
             : TransactionMessage.decompile(originalMessage);
           
-          // Prepend the fee instruction to the existing instructions
+          // [3] MERGE — fee at index 0, Drift order at index 1+.
+          //     This single array is the atomic bundle: once signed,
+          //     removing or mutating either half breaks the Ed25519
+          //     signature → validator rejects. Fee = unbypassable.
           const allInstructions = [feeInstruction, ...decompiled.instructions];
           
-          // Create a new TransactionMessage with all instructions
+          // [4] RECOMPILE — pack the merged instruction array back into
+          //     a single V0 message. The wallet will sign ONE Ed25519
+          //     signature over SHA-256 of these bytes, covering BOTH
+          //     fee + trade in one indivisible unit.
           const modifiedMessage = new TransactionMessage({
             payerKey: decompiled.payerKey,
             instructions: allInstructions,

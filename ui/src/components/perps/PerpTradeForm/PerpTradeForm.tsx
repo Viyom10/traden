@@ -15,6 +15,7 @@ import {
 import { ENUM_UTILS, MarketId } from "@drift-labs/common";
 import { useMarkPriceStore } from "@/stores/MarkPriceStore";
 import { useOraclePriceStore } from "@/stores/OraclePriceStore";
+import { SimulatedSignModal } from "../SimulatedSignModal";
 
 interface PerpTradeFormProps {
   perpMarketConfigs: PerpMarketConfig[];
@@ -57,6 +58,11 @@ export function PerpTradeForm({
     setPostOnly,
     handleSubmit,
     canSubmit,
+    simModalOpen,
+    pendingSimTrade,
+    confirmSimulatedSign,
+    cancelSimulatedSign,
+    setSimModalOpen,
   } = usePerpTrading({ perpMarketConfigs, selectedMarketIndex });
 
   const selectedMarketId = MarketId.createPerpMarket(selectedMarketIndex);
@@ -72,26 +78,6 @@ export function PerpTradeForm({
     e.preventDefault();
     await handleSubmit();
   };
-
-  if (perpMarketConfigs.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Target className="h-5 w-5 text-yellow-400" />
-            Trading Form
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8 text-gray-400">
-            <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>No markets available</p>
-            <p className="text-sm">Connect to Drift to start trading</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <Card>
@@ -372,6 +358,23 @@ export function PerpTradeForm({
           </Button>
         </form>
       </CardContent>
+      {pendingSimTrade && (
+        <SimulatedSignModal
+          open={simModalOpen}
+          onOpenChange={setSimModalOpen}
+          onApprove={confirmSimulatedSign}
+          onReject={cancelSimulatedSign}
+          payerPubkey={pendingSimTrade.payer}
+          recipientPubkey={pendingSimTrade.recipient}
+          marketSymbol={pendingSimTrade.marketSymbol}
+          side={pendingSimTrade.side}
+          size={pendingSimTrade.size}
+          sizeType={pendingSimTrade.sizeType}
+          feeLamports={pendingSimTrade.feeLamports}
+          feeSol={pendingSimTrade.feeSol}
+          oraclePriceUsd={pendingSimTrade.oraclePriceUsd}
+        />
+      )}
     </Card>
   );
 }
